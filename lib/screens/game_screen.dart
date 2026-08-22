@@ -104,6 +104,21 @@ class GameScreen extends StatelessWidget {
                             TimerRing(timeLeft: controller.timeLeft, totalSeconds: q.timerSeconds),
                         ],
                       ),
+                      if (controller.errorMessage != null) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.92),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${controller.errorMessage!} Tap an option to try again.',
+                            style: AppFonts.inter(size: 13, weight: FontWeight.w600, color: AppColors.feedbackWrongTitle),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       if (q.showTopPrompt) ...[
                         Align(
@@ -131,7 +146,8 @@ class GameScreen extends StatelessWidget {
                               text: q.options[i],
                               imgBg: AppColors.optionHues[i % 4],
                               answered: controller.answered,
-                              isCorrectOption: i == q.correct,
+                              isGrading: controller.isGrading,
+                              isCorrectOption: i == controller.gradedCorrectIndex,
                               isSelected: controller.selected == i,
                               shake: controller.shakeIndex == i,
                               onTap: () => controller.selectAnswer(i),
@@ -145,13 +161,13 @@ class GameScreen extends StatelessWidget {
             ],
           ),
         ),
-        if (controller.feedback != AnswerFeedback.none)
+        if (controller.feedback != AnswerFeedback.none && controller.gradedCorrectIndex != null)
           Positioned.fill(
             child: FeedbackOverlay(
               feedback: controller.feedback,
               xpGained: controller.xpGained,
               streak: controller.streak,
-              correctAnswerText: q.options[q.correct],
+              correctAnswerText: q.options[controller.gradedCorrectIndex!],
             ),
           ),
       ],

@@ -46,3 +46,11 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Backend (Node/Express + MySQL)
+server/node_modules/
+.env
+server/.env
+server/public/audio/
+server/public/images/
+

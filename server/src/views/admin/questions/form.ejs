@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('../../partials/head', { title: question.id ? 'Edit question' : 'New question' }) %></head>
+<body>
+  <div class="flex min-h-screen">
+    <%- include('../../partials/sidebar', { active: 'questions' }) %>
+    <main class="flex-1 p-8 max-w-2xl">
+      <a href="/admin/questions" class="text-sm text-slate-500 hover:text-slate-700">← Back to questions</a>
+      <h1 class="text-2xl font-extrabold text-slate-900 mt-2 mb-6">
+        <%= question.id ? 'Edit question' : 'New question' %>
+      </h1>
+
+      <% if (error) { %>
+        <div class="alert-error mb-5">
+          <span>⚠️</span>
+          <span><%= error %></span>
+        </div>
+      <% } %>
+
+      <div class="card p-6">
+        <form method="post" action="<%= question.id ? '/admin/questions/' + question.id : '/admin/questions' %>" class="space-y-6">
+
+          <div class="grid grid-cols-3 gap-4">
+            <div>
+              <label class="field-label">Category</label>
+              <select name="category_id" required class="field-select">
+                <option value="">Select</option>
+                <% categories.forEach(function(c) { %>
+                  <option value="<%= c.id %>" <%= String(question.category_id) === String(c.id) ? 'selected' : '' %>>
+                    <%= c.emoji %> <%= c.name %>
+                  </option>
+                <% }); %>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Type</label>
+              <select name="type" id="type-select" class="field-select">
+                <% types.forEach(function(t) { %>
+                  <option value="<%= t %>" <%= question.type === t ? 'selected' : '' %>><%= t %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Timer (s)</label>
+              <input type="number" name="timer_seconds" min="0" class="field-input" value="<%= question.timer_seconds || 0 %>">
+            </div>
+          </div>
+
+          <div>
+            <label class="field-label">Label <span class="font-normal text-slate-400">(badge on the question screen, e.g. "LOOK &amp; GUESS 👀")</span></label>
+            <input type="text" name="label" required class="field-input" value="<%= question.label || '' %>">
+          </div>
+          <div>
+            <label class="field-label">Prompt</label>
+            <input type="text" name="prompt" required class="field-input q-prompt-input" value="<%= question.prompt || '' %>">
+          </div>
+
+          <div>
+            <label class="field-label">Instruction / tone <span class="font-normal text-slate-400">(for text-to-speech)</span></label>
+            <input type="text" name="instruct_text" class="field-input q-instruct-input" value="<%= question.instruct_text || '' %>">
+          </div>
+
+          <div>
+            <% if (!question.id) { %>
+              <input type="hidden" name="audio_path" class="q-audio-path-input" value="">
+            <% } %>
+            <button type="button"
+              class="generate-audio-btn btn-secondary"
+              data-endpoint="<%= question.id ? '/admin/questions/' + question.id + '/audio' : '/admin/questions/audio-preview' %>"
+              data-scope="form"
+              data-text-selector=".q-prompt-input"
+              data-instruct-selector=".q-instruct-input"
+              data-audio-selector=".q-audio-player"
+              data-error-selector=".q-audio-error"
+              <%- !question.id ? 'data-hidden-path-selector=".q-audio-path-input"' : '' %>>
+              🔊 Generate Audio
+            </button>
+            <audio controls class="q-audio-player <%= question.audio_path ? '' : 'hidden' %> mt-2 w-full" preload="none" <%- question.audio_path ? `src="${question.audio_path}"` : '' %>></audio>
+            <p class="q-audio-error hidden text-xs text-rose-600 mt-1"></p>
+          </div>
+
+          <div class="type-fields hidden border-t border-slate-100 pt-5" data-types="image">
+            <label class="field-label">Image placeholder text</label>
+            <input type="text" name="media_placeholder" class="field-input" value="<%= question.media_placeholder || '' %>">
+          </div>
+
+          <div class="type-fields hidden border-t border-slate-100 pt-5" data-types="audio,video">
+            <label class="field-label">Media duration <span class="font-normal text-slate-400">(e.g. "0:12")</span></label>
+            <input type="text" name="media_duration" class="field-input" value="<%= question.media_duration || '' %>">
+          </div>
+
+          <div class="type-fields hidden border-t border-slate-100 pt-5" data-types="emoji">
+            <label class="field-label">Emojis</label>
+            <input type="text" name="emojis" class="field-input" value="<%= question.emojis || '' %>">
+          </div>
+
+          <div class="type-fields hidden border-t border-slate-100 pt-5" data-types="progressive">
+            <label class="field-label">Clues <span class="font-normal text-slate-400">(in reveal order)</span></label>
+            <div class="space-y-2">
+              <% for (let i = 0; i < maxClues; i++) { %>
+                <input type="text" name="clue_<%= i %>" placeholder="Clue <%= i + 1 %>" class="field-input" value="<%= (question.clues && question.clues[i]) || '' %>">
+              <% } %>
+            </div>
+          </div>
+
+          <div class="border-t border-slate-100 pt-5">
+            <label class="field-label mb-3">Options <span class="font-normal text-slate-400">(exactly 4 — select the correct one)</span></label>
+            <div class="space-y-4">
+              <% for (let i = 0; i < 4; i++) { %>
+                <% var optImg = question.option_image_paths && question.option_image_paths[i]; %>
+                <div class="option-block rounded-xl border border-slate-200 p-4 has-[:checked]:border-brand-400 has-[:checked]:bg-brand-50">
+                  <label class="flex items-center gap-3 cursor-pointer mb-4">
+                    <input type="radio" name="correct_index" value="<%= i %>" <%= Number(question.correct_index) === i ? 'checked' : '' %> required class="accent-brand-500 w-5 h-5 shrink-0">
+                    <input type="text" name="option_<%= i %>" placeholder="Option <%= i + 1 %>" required
+                      class="flex-1 border-0 p-0 text-base font-semibold text-slate-900 placeholder:text-slate-400 focus:ring-0 bg-transparent"
+                      value="<%= (question.options && question.options[i]) || '' %>">
+                  </label>
+                  <div class="grid grid-cols-1 sm:grid-cols-[1fr_9rem] gap-4 items-start">
+                    <div>
+                      <label class="field-label">Image prompt</label>
+                      <textarea name="option_image_prompt_<%= i %>"
+                        class="field-input text-sm opt-image-prompt-input w-full h-36 resize-y"
+                      ><%= (question.option_image_prompts && question.option_image_prompts[i]) || '' %></textarea>
+                      <% if (!question.id) { %>
+                        <input type="hidden" name="option_image_path_<%= i %>" class="opt-image-path-input" value="">
+                      <% } %>
+                      <div class="flex items-center gap-3 mt-2">
+                        <button type="button"
+                          class="generate-image-btn btn-secondary"
+                          data-endpoint="<%= question.id ? '/admin/questions/' + question.id + '/image' : '/admin/questions/image-preview' %>"
+                          data-scope=".option-block"
+                          data-prompt-selector=".opt-image-prompt-input"
+                          data-image-selector=".opt-image-preview"
+                          data-placeholder-selector=".opt-image-placeholder"
+                          data-error-selector=".opt-image-error"
+                          data-option-index="<%= i %>"
+                          <%- !question.id ? 'data-hidden-path-selector=".opt-image-path-input"' : '' %>>
+                          🎨 Generate Image
+                        </button>
+                        <p class="opt-image-error hidden text-xs text-rose-600"></p>
+                      </div>
+                    </div>
+                    <div class="shrink-0">
+                      <label class="field-label">Generated image</label>
+                      <div class="w-full aspect-square sm:w-36 sm:h-36 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden">
+                        <img class="opt-image-preview <%= optImg ? '' : 'hidden' %> w-full h-full object-cover" alt="" <%- optImg ? `src="${optImg}"` : '' %>>
+                        <span class="opt-image-placeholder <%= optImg ? 'hidden' : '' %> text-xs text-slate-400 text-center px-3">No image yet</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              <% } %>
+            </div>
+          </div>
+
+          <div class="flex gap-3 pt-2">
+            <button class="btn-primary" type="submit">Save</button>
+            <a class="btn-secondary" href="/admin/questions">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function syncTypeFields() {
+      var type = document.getElementById('type-select').value;
+      document.querySelectorAll('.type-fields').forEach(function (el) {
+        var types = el.getAttribute('data-types').split(',');
+        el.classList.toggle('hidden', types.indexOf(type) === -1);
+      });
+    }
+    document.getElementById('type-select').addEventListener('change', syncTypeFields);
+    syncTypeFields();
+  </script>
+</body>
+</html>

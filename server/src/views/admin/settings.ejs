@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('../partials/head', { title: 'Settings' }) %></head>
+<body>
+  <div class="flex min-h-screen">
+    <%- include('../partials/sidebar', { active: 'settings' }) %>
+    <main class="flex-1 p-8 max-w-2xl space-y-8">
+      <div>
+        <h1 class="text-2xl font-extrabold text-slate-900">Settings</h1>
+        <p class="text-slate-500 text-sm mt-1">Manage your admin account and integrations.</p>
+      </div>
+
+      <section>
+        <h2 class="text-base font-bold text-slate-900 mb-3">Account</h2>
+        <div class="card p-6">
+          <% if (accountError) { %>
+            <div class="alert-error mb-4"><span>⚠️</span><span><%= accountError %></span></div>
+          <% } %>
+          <% if (accountSuccess) { %>
+            <div class="alert-success mb-4"><span>✓</span><span><%= accountSuccess %></span></div>
+          <% } %>
+          <form method="post" action="/admin/settings/account" class="space-y-4">
+            <div>
+              <label class="field-label">Email</label>
+              <input class="field-input" type="email" name="email" required value="<%= account.email %>">
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="field-label">New password</label>
+                <input class="field-input" type="password" name="new_password" autocomplete="new-password" minlength="8">
+                <p class="text-xs text-slate-400 mt-1">Leave blank to keep current</p>
+              </div>
+              <div>
+                <label class="field-label">Confirm new password</label>
+                <input class="field-input" type="password" name="confirm_password" autocomplete="new-password" minlength="8">
+              </div>
+            </div>
+            <div class="border-t border-slate-100 pt-4">
+              <label class="field-label">Current password <span class="font-normal text-slate-400">(required to save changes)</span></label>
+              <input class="field-input max-w-xs" type="password" name="current_password" required autocomplete="current-password">
+            </div>
+            <button class="btn-primary" type="submit">Save account</button>
+          </form>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="text-base font-bold text-slate-900 mb-3">Claude API key</h2>
+        <div class="card p-6">
+          <p class="text-sm text-slate-500 mb-4">
+            Used for AI-assisted features. Stored encrypted — the full key is never shown again after saving.
+          </p>
+          <% if (claudeKeyError) { %>
+            <div class="alert-error mb-4"><span>⚠️</span><span><%= claudeKeyError %></span></div>
+          <% } %>
+          <% if (claudeKeySuccess) { %>
+            <div class="alert-success mb-4"><span>✓</span><span><%= claudeKeySuccess %></span></div>
+          <% } %>
+
+          <% if (maskedClaudeKey) { %>
+            <div class="flex items-center justify-between gap-4 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 mb-4">
+              <div class="min-w-0">
+                <div class="text-xs text-slate-500 mb-0.5">Current key</div>
+                <div class="font-mono text-sm text-slate-700 truncate"><%= maskedClaudeKey %></div>
+              </div>
+              <form method="post" action="/admin/settings/claude-key/remove" onsubmit="return confirm('Remove the saved Claude API key?');" class="shrink-0">
+                <button class="btn-danger" type="submit">Remove</button>
+              </form>
+            </div>
+          <% } %>
+
+          <form method="post" action="/admin/settings/claude-key" class="flex items-end gap-3">
+            <div class="flex-1">
+              <label class="field-label"><%= maskedClaudeKey ? 'Replace key' : 'API key' %></label>
+              <input class="field-input font-mono" type="password" name="api_key" placeholder="sk-ant-..." autocomplete="off">
+            </div>
+            <button class="btn-primary" type="submit">Save key</button>
+          </form>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="text-base font-bold text-slate-900 mb-3">Custom AI key</h2>
+        <div class="card p-6">
+          <p class="text-sm text-slate-500 mb-4">
+            Used for AI-generated question audio (text-to-speech). Stored encrypted — the full key is never shown again after saving.
+          </p>
+          <% if (ttsKeyError) { %>
+            <div class="alert-error mb-4"><span>⚠️</span><span><%= ttsKeyError %></span></div>
+          <% } %>
+          <% if (ttsKeySuccess) { %>
+            <div class="alert-success mb-4"><span>✓</span><span><%= ttsKeySuccess %></span></div>
+          <% } %>
+
+          <% if (maskedTtsKey) { %>
+            <div class="flex items-center justify-between gap-4 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 mb-4">
+              <div class="min-w-0">
+                <div class="text-xs text-slate-500 mb-0.5">Current key</div>
+                <div class="font-mono text-sm text-slate-700 truncate"><%= maskedTtsKey %></div>
+              </div>
+              <form method="post" action="/admin/settings/tts-key/remove" onsubmit="return confirm('Remove the saved Custom AI key?');" class="shrink-0">
+                <button class="btn-danger" type="submit">Remove</button>
+              </form>
+            </div>
+          <% } %>
+
+          <form method="post" action="/admin/settings/tts-key" class="flex items-end gap-3">
+            <div class="flex-1">
+              <label class="field-label"><%= maskedTtsKey ? 'Replace key' : 'API key' %></label>
+              <input class="field-input font-mono" type="password" name="api_key" placeholder="..." autocomplete="off">
+            </div>
+            <button class="btn-primary" type="submit">Save key</button>
+          </form>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

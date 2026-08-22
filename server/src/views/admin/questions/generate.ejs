@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('../../partials/head', { title: 'Generate with AI' }) %></head>
+<body>
+  <div class="flex min-h-screen">
+    <%- include('../../partials/sidebar', { active: 'questions' }) %>
+    <main class="flex-1 p-8 max-w-2xl">
+      <a href="/admin/questions" class="text-sm text-slate-500 hover:text-slate-700">← Back to questions</a>
+      <h1 class="text-2xl font-extrabold text-slate-900 mt-2 mb-1">✨ Generate with AI</h1>
+      <p class="text-slate-500 text-sm mb-6">Claude drafts a batch of questions for a category. You review, edit, and choose what to save next.</p>
+
+      <% if (error) { %>
+        <div class="alert-error mb-5">
+          <span>⚠️</span>
+          <span>
+            <%= error %>
+            <% if (error.includes('Claude API key')) { %>
+              <a href="/admin/settings" class="underline font-semibold">Go to Settings →</a>
+            <% } %>
+          </span>
+        </div>
+      <% } %>
+
+      <div class="card p-6">
+        <form method="post" action="/admin/questions/generate" class="space-y-5" id="generate-form">
+          <div>
+            <label class="field-label">Category</label>
+            <select name="category_id" required class="field-select">
+              <option value="">Select a category</option>
+              <% categories.forEach(function(c) { %>
+                <option value="<%= c.id %>"><%= c.emoji %> <%= c.name %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div>
+            <label class="field-label">How many questions?</label>
+            <input type="number" name="count" min="1" max="15" value="5" required class="field-input max-w-xs">
+            <p class="text-xs text-slate-400 mt-1">Up to 15 at a time</p>
+          </div>
+          <button class="btn-primary" type="submit" id="generate-submit">Generate</button>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    document.getElementById('generate-form').addEventListener('submit', function () {
+      var btn = document.getElementById('generate-submit');
+      btn.disabled = true;
+      btn.textContent = 'Generating…';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('../partials/head', { title: 'Admin Login' }) %></head>
+<body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-600 via-brand-500 to-fuchsia-500 p-4">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-6">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center text-2xl mb-3">🎬</div>
+      <h1 class="text-white text-2xl font-extrabold">GuessRush Admin</h1>
+      <p class="text-white/70 text-sm mt-1">Sign in to manage content</p>
+    </div>
+
+    <div class="card p-6">
+      <% if (error) { %>
+        <div class="alert-error mb-4">
+          <span>⚠️</span>
+          <span><%= error %></span>
+        </div>
+      <% } %>
+      <form method="post" action="/admin/login" class="space-y-4">
+        <div>
+          <label class="field-label">Email</label>
+          <input class="field-input" type="email" name="email" required autofocus autocomplete="username">
+        </div>
+        <div>
+          <label class="field-label">Password</label>
+          <input class="field-input" type="password" name="password" required autocomplete="current-password">
+        </div>
+        <button class="btn-primary w-full" type="submit">Log in</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

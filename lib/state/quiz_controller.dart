@@ -1,17 +1,41 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' hide Category;
 
-import '../data/quiz_data.dart';
+import '../models/category.dart';
+import '../models/player.dart';
 import '../models/question.dart';
+import '../services/api_client.dart';
+import '../services/auth_service.dart';
+import '../services/quiz_api.dart';
 import '../services/tts_service.dart';
 
-enum AppScreen { home, categories, game, results }
+enum AppScreen { boot, login, signup, home, categories, game, results }
 
 enum AnswerFeedback { none, correct, wrong }
 
 class QuizController extends ChangeNotifier {
-  AppScreen screen = AppScreen.home;
+  QuizController({AuthService? authService, QuizApi? quizApi})
+      : authService = authService ?? AuthService(ApiClient.instance),
+        quizApi = quizApi ?? QuizApi(ApiClient.instance);
+
+  final AuthService authService;
+  final QuizApi quizApi;
+
+  AppScreen screen = AppScreen.boot;
+
+  // Auth
+  Player? player;
+  bool authLoading = false;
+  String? authError;
+
+  // Categories / session
+  List<Category> categories = [];
+  Category? _lastCategory;
+  int? sessionId;
+  List<Question> questions = [];
+  bool isCreatingSession = false;
+  String? errorMessage;
 
   int qIndex = 0;
   int score = 0;
@@ -23,6 +47,8 @@ class QuizController extends ChangeNotifier {
 
   int? selected;
   bool answered = false;
+  bool isGrading = false;
+  int? gradedCorrectIndex;
   int timeLeft = 0;
   int clueCount = 1;
   AnswerFeedback feedback = AnswerFeedback.none;
@@ -32,11 +58,89 @@ class QuizController extends ChangeNotifier {
   int? shakeIndex;
 
   Timer? _timer;
-  Timer? _feedbackDelay;
   Timer? _advanceDelay;
 
-  Question get currentQuestion => kQuestions[qIndex];
-  int get questionTotal => kQuestions.length;
+  Question get currentQuestion => questions[qIndex];
+  int get questionTotal => questions.length;
+
+  // ---- Boot / Auth ----
+
+  Future<void> bootstrap() async {
+    screen = AppScreen.boot;
+    notifyListeners();
+    final existing = await authService.fetchStoredSession();
+    if (existing != null) {
+      player = existing;
+      await _loadCategoriesAndGoHome();
+    } else {
+      screen = AppScreen.login;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadCategoriesAndGoHome() async {
+    try {
+      categories = await quizApi.getCategories();
+    } on ApiException catch (e) {
+      errorMessage = e.message;
+    }
+    screen = AppScreen.home;
+    notifyListeners();
+  }
+
+  Future<void> login(String email, String password) async {
+    authLoading = true;
+    authError = null;
+    notifyListeners();
+    try {
+      player = await authService.login(email: email, password: password);
+      authLoading = false;
+      await _loadCategoriesAndGoHome();
+    } on ApiException catch (e) {
+      authLoading = false;
+      authError = e.message;
+      notifyListeners();
+    }
+  }
+
+  Future<void> signup(String email, String password, String displayName) async {
+    authLoading = true;
+    authError = null;
+    notifyListeners();
+    try {
+      player = await authService.signup(email: email, password: password, displayName: displayName);
+      authLoading = false;
+      await _loadCategoriesAndGoHome();
+    } on ApiException catch (e) {
+      authLoading = false;
+      authError = e.message;
+      notifyListeners();
+    }
+  }
+
+  void goToSignup() {
+    authError = null;
+    screen = AppScreen.signup;
+    notifyListeners();
+  }
+
+  void goToLogin() {
+    authError = null;
+    screen = AppScreen.login;
+    notifyListeners();
+  }
+
+  Future<void> logout() async {
+    _clearAllTimers();
+    TtsService.instance.stop();
+    await authService.logout();
+    player = null;
+    categories = [];
+    screen = AppScreen.login;
+    notifyListeners();
+  }
+
+  // ---- Timers ----
 
   void _clearTimer() {
     _timer?.cancel();
@@ -45,15 +149,21 @@ class QuizController extends ChangeNotifier {
 
   void _clearAllTimers() {
     _clearTimer();
-    _feedbackDelay?.cancel();
     _advanceDelay?.cancel();
   }
 
+  int _elapsedMs() => _qStartTs == null ? 0 : DateTime.now().difference(_qStartTs!).inMilliseconds;
+
+  // ---- Game flow ----
+
   void startQuestion(int idx) {
     _clearTimer();
-    final q = kQuestions[idx];
+    final q = questions[idx];
     selected = null;
     answered = false;
+    isGrading = false;
+    gradedCorrectIndex = null;
+    errorMessage = null;
     timeLeft = q.timerSeconds;
     clueCount = 1;
     isPlaying = false;
@@ -81,66 +191,93 @@ class QuizController extends ChangeNotifier {
   void _handleTimeout() {
     answered = true;
     selected = -1;
+    isGrading = true;
+    errorMessage = null;
     notifyListeners();
-    _feedbackDelay = Timer(const Duration(milliseconds: 300), () {
-      _showFeedback(false);
-    });
+    _submitAnswer(-1, _elapsedMs());
   }
 
-  void selectAnswer(int i) {
-    if (answered) return;
+  Future<void> selectAnswer(int i) async {
+    if (answered || isGrading) return;
     _clearTimer();
-    final q = currentQuestion;
-    final correct = i == q.correct;
-    final rt = _qStartTs == null
-        ? 0.0
-        : DateTime.now().difference(_qStartTs!).inMilliseconds / 1000.0;
+    final rt = _elapsedMs();
     selected = i;
     answered = true;
-    shakeIndex = correct ? null : i;
-    responseTimes.add(rt);
+    isGrading = true;
+    errorMessage = null;
     notifyListeners();
-    _feedbackDelay = Timer(const Duration(milliseconds: 400), () {
-      _showFeedback(correct);
-    });
+    await _submitAnswer(i, rt);
   }
 
-  void _showFeedback(bool correct) {
-    if (correct) {
-      const xp = 250;
-      streak += 1;
-      bestStreak = streak > bestStreak ? streak : bestStreak;
-      score += xp;
-      correctCount += 1;
-      xpGained = xp;
-      feedback = AnswerFeedback.correct;
-      TtsService.instance.speak('Correct! Plus $xp XP.');
-    } else {
-      streak = 0;
-      wrongCount += 1;
-      feedback = AnswerFeedback.wrong;
-      final answer = currentQuestion.options[currentQuestion.correct];
-      TtsService.instance.speak('Not this time. The answer was $answer.');
+  Future<void> _submitAnswer(int selectedIndex, int responseTimeMs) async {
+    try {
+      final result = await quizApi.submitAnswer(
+        sessionId: sessionId!,
+        questionId: currentQuestion.id,
+        selectedIndex: selectedIndex,
+        responseTimeMs: responseTimeMs,
+      );
+      isGrading = false;
+      gradedCorrectIndex = result.correctIndex;
+      shakeIndex = (!result.isCorrect && selectedIndex >= 0) ? selectedIndex : null;
+      score = result.score;
+      streak = result.streak;
+      bestStreak = result.bestStreak;
+      xpGained = result.xpGained;
+      if (result.isCorrect) {
+        correctCount += 1;
+      } else {
+        wrongCount += 1;
+      }
+      responseTimes.add(responseTimeMs / 1000.0);
+      feedback = result.isCorrect ? AnswerFeedback.correct : AnswerFeedback.wrong;
+      notifyListeners();
+
+      if (result.isCorrect) {
+        TtsService.instance.speak('Correct! Plus ${result.xpGained} XP.');
+      } else {
+        final answerText = currentQuestion.options[result.correctIndex];
+        TtsService.instance.speak('Not this time. The answer was $answerText.');
+      }
+      _advanceDelay = Timer(const Duration(milliseconds: 1600), _nextQuestion);
+    } on ApiException catch (e) {
+      // No local fallback grading — that would reopen the cheat vector
+      // server-authoritative grading exists to close. Re-enable the
+      // options so the user can just tap again to retry.
+      isGrading = false;
+      answered = false;
+      selected = null;
+      errorMessage = e.message;
+      notifyListeners();
     }
-    notifyListeners();
-    _advanceDelay = Timer(const Duration(milliseconds: 1600), _nextQuestion);
   }
 
   void _nextQuestion() {
     final next = qIndex + 1;
-    if (next >= kQuestions.length) {
-      screen = AppScreen.results;
-      feedback = AnswerFeedback.none;
-      notifyListeners();
-      TtsService.instance.speak(
-        'Game complete! You scored $score points, with $correctCount correct '
-        'and $wrongCount wrong. Best streak: $bestStreak.',
-      );
+    if (next >= questions.length) {
+      _finishSession();
     } else {
       qIndex = next;
       feedback = AnswerFeedback.none;
       notifyListeners();
       startQuestion(next);
+    }
+  }
+
+  Future<void> _finishSession() async {
+    screen = AppScreen.results;
+    feedback = AnswerFeedback.none;
+    notifyListeners();
+    TtsService.instance.speak(
+      'Game complete! You scored $score points, with $correctCount correct '
+      'and $wrongCount wrong. Best streak: $bestStreak.',
+    );
+    try {
+      await quizApi.finishSession(sessionId!);
+    } on ApiException {
+      // Non-fatal: the results screen already shows the locally-tracked
+      // totals, which mirror the server's authoritative per-answer
+      // responses. /finish just marks the session row completed.
     }
   }
 
@@ -152,25 +289,44 @@ class QuizController extends ChangeNotifier {
   void goHome() {
     _clearAllTimers();
     TtsService.instance.stop();
+    sessionId = null;
+    questions = [];
     screen = AppScreen.home;
     notifyListeners();
   }
 
-  void selectCategory() {
-    qIndex = 0;
-    score = 0;
-    streak = 0;
-    bestStreak = 0;
-    correctCount = 0;
-    wrongCount = 0;
-    responseTimes.clear();
-    feedback = AnswerFeedback.none;
-    screen = AppScreen.game;
+  Future<void> selectCategory(Category category) async {
+    _lastCategory = category;
+    errorMessage = null;
+    isCreatingSession = true;
     notifyListeners();
-    startQuestion(0);
+    try {
+      final start = await quizApi.createSession(category.id);
+      sessionId = start.sessionId;
+      questions = start.questions;
+      qIndex = 0;
+      score = 0;
+      streak = 0;
+      bestStreak = 0;
+      correctCount = 0;
+      wrongCount = 0;
+      responseTimes.clear();
+      feedback = AnswerFeedback.none;
+      isCreatingSession = false;
+      screen = AppScreen.game;
+      notifyListeners();
+      startQuestion(0);
+    } on ApiException catch (e) {
+      isCreatingSession = false;
+      errorMessage = e.message;
+      notifyListeners();
+    }
   }
 
-  void playAgain() => selectCategory();
+  void playAgain() {
+    final cat = _lastCategory;
+    if (cat != null) selectCategory(cat);
+  }
 
   void revealClue() {
     final clues = currentQuestion.clues;
@@ -186,7 +342,7 @@ class QuizController extends ChangeNotifier {
     notifyListeners();
   }
 
-  double get progressPct => qIndex / kQuestions.length;
+  double get progressPct => questions.isEmpty ? 0 : qIndex / questions.length;
 
   double get accuracyPct {
     final total = correctCount + wrongCount;

@@ -5,7 +5,9 @@ import '../theme/colors.dart';
 import 'categories_screen.dart';
 import 'game_screen.dart';
 import 'home_screen.dart';
+import 'login_screen.dart';
 import 'results_screen.dart';
+import 'signup_screen.dart';
 
 class QuizAppShell extends StatefulWidget {
   const QuizAppShell({super.key});
@@ -21,6 +23,7 @@ class _QuizAppShellState extends State<QuizAppShell> {
   void initState() {
     super.initState();
     controller.addListener(_onChange);
+    controller.bootstrap();
   }
 
   void _onChange() => setState(() {});
@@ -34,6 +37,15 @@ class _QuizAppShellState extends State<QuizAppShell> {
 
   Widget _buildScreen() {
     switch (controller.screen) {
+      case AppScreen.boot:
+        return const SizedBox.expand(
+          key: ValueKey('boot'),
+          child: Center(child: CircularProgressIndicator(color: Colors.white)),
+        );
+      case AppScreen.login:
+        return LoginScreen(key: const ValueKey('login'), controller: controller);
+      case AppScreen.signup:
+        return SignupScreen(key: const ValueKey('signup'), controller: controller);
       case AppScreen.home:
         return HomeScreen(key: const ValueKey('home'), controller: controller);
       case AppScreen.categories:

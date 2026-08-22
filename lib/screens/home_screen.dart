@@ -12,6 +12,8 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final name = controller.player?.displayName ?? 'Player';
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
@@ -31,15 +33,33 @@ class HomeScreen extends StatelessWidget {
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        'P',
+                        initial,
                         style: AppFonts.baloo(size: 18, color: AppColors.linkPurple),
                       ),
                     ),
                     const SizedBox(width: 10),
-                    Text('Player1', style: AppFonts.inter(size: 14, weight: FontWeight.w700)),
+                    Text(name, style: AppFonts.inter(size: 14, weight: FontWeight.w700)),
                   ],
                 ),
-                StreakBadge(streak: controller.bestStreak),
+                Row(
+                  children: [
+                    StreakBadge(streak: controller.bestStreak),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: controller.logout,
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.logout, size: 16, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
             Expanded(

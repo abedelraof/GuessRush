@@ -9,6 +9,7 @@ class OptionTile extends StatefulWidget {
   final Color imgBg;
   final VoidCallback onTap;
   final bool answered;
+  final bool isGrading;
   final bool isCorrectOption;
   final bool isSelected;
   final bool shake;
@@ -20,6 +21,7 @@ class OptionTile extends StatefulWidget {
     required this.imgBg,
     required this.onTap,
     required this.answered,
+    required this.isGrading,
     required this.isCorrectOption,
     required this.isSelected,
     required this.shake,
@@ -29,19 +31,21 @@ class OptionTile extends StatefulWidget {
   State<OptionTile> createState() => _OptionTileState();
 }
 
-class _OptionTileState extends State<OptionTile> with SingleTickerProviderStateMixin {
+class _OptionTileState extends State<OptionTile> with TickerProviderStateMixin {
   late final AnimationController _shakeController;
+  late final AnimationController _pulseController;
 
   static const _letters = ['A', 'B', 'C', 'D'];
+
+  bool get _isPending => widget.answered && widget.isGrading && widget.isSelected;
 
   @override
   void initState() {
     super.initState();
-    _shakeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 420),
-    );
+    _shakeController = AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
+    _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 650));
     if (widget.shake) _shakeController.forward();
+    if (_isPending) _pulseController.repeat(reverse: true);
   }
 
   @override
@@ -50,11 +54,19 @@ class _OptionTileState extends State<OptionTile> with SingleTickerProviderStateM
     if (widget.shake && !old.shake) {
       _shakeController.forward(from: 0);
     }
+    final wasPending = old.answered && old.isGrading && old.isSelected;
+    if (_isPending && !wasPending) {
+      _pulseController.repeat(reverse: true);
+    } else if (!_isPending && wasPending) {
+      _pulseController.stop();
+      _pulseController.value = 0;
+    }
   }
 
   @override
   void dispose() {
     _shakeController.dispose();
+    _pulseController.dispose();
     super.dispose();
   }
 
@@ -66,7 +78,11 @@ class _OptionTileState extends State<OptionTile> with SingleTickerProviderStateM
     String icon = '';
 
     if (widget.answered) {
-      if (widget.isCorrectOption) {
+      if (widget.isGrading) {
+        // Result not known yet — neutral pending look, no red/green guess.
+        bg = AppColors.disabledBg;
+        color = AppColors.mutedText;
+      } else if (widget.isCorrectOption) {
         bg = AppColors.correctBg;
         border = AppColors.correctBorder;
         icon = '✓';
@@ -81,11 +97,15 @@ class _OptionTileState extends State<OptionTile> with SingleTickerProviderStateM
     }
 
     return AnimatedBuilder(
-      animation: _shakeController,
+      animation: Listenable.merge([_shakeController, _pulseController]),
       builder: (context, child) {
         final t = _shakeController.value;
         final dx = _shakeOffset(t);
-        return Transform.translate(offset: Offset(dx, 0), child: child);
+        final opacity = _isPending ? 0.55 + 0.45 * (1 - _pulseController.value) : 1.0;
+        return Transform.translate(
+          offset: Offset(dx, 0),
+          child: Opacity(opacity: opacity, child: child),
+        );
       },
       child: Material(
         color: Colors.transparent,

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('../../partials/head', { title: category ? 'Edit category' : 'New category' }) %></head>
+<body>
+  <div class="flex min-h-screen">
+    <%- include('../../partials/sidebar', { active: 'categories' }) %>
+    <main class="flex-1 p-8 max-w-2xl">
+      <a href="/admin/categories" class="text-sm text-slate-500 hover:text-slate-700">← Back to categories</a>
+      <h1 class="text-2xl font-extrabold text-slate-900 mt-2 mb-6">
+        <%= category && category.id ? 'Edit category' : 'New category' %>
+      </h1>
+
+      <% if (error) { %>
+        <div class="alert-error mb-5">
+          <span>⚠️</span>
+          <span><%= error %></span>
+        </div>
+      <% } %>
+
+      <div class="card p-6">
+        <form method="post" action="<%= category && category.id ? '/admin/categories/' + category.id : '/admin/categories' %>" class="space-y-5">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="field-label">Name</label>
+              <input class="field-input" type="text" name="name" required value="<%= category ? category.name : '' %>">
+            </div>
+            <div>
+              <label class="field-label">Slug (unique key)</label>
+              <input class="field-input" type="text" name="key_slug" required value="<%= category ? category.key_slug : '' %>">
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="field-label">Emoji</label>
+              <input class="field-input" type="text" name="emoji" required value="<%= category ? category.emoji : '' %>">
+            </div>
+            <div>
+              <label class="field-label">Color</label>
+              <div class="flex items-center gap-2">
+                <input
+                  id="color-swatch"
+                  type="color"
+                  class="w-10 h-10 rounded-lg border border-slate-300 cursor-pointer shrink-0"
+                  value="<%= category && category.color_hex ? category.color_hex : '#764BE5' %>"
+                  oninput="document.getElementById('color-hex').value = this.value.toUpperCase()"
+                >
+                <input
+                  id="color-hex"
+                  class="field-input"
+                  type="text"
+                  name="color_hex"
+                  required
+                  placeholder="#764BE5"
+                  value="<%= category ? category.color_hex : '' %>"
+                  oninput="if (/^#[0-9A-Fa-f]{6}$/.test(this.value)) document.getElementById('color-swatch').value = this.value"
+                >
+              </div>
+            </div>
+          </div>
+          <div class="flex gap-3 pt-2">
+            <button class="btn-primary" type="submit">Save</button>
+            <a class="btn-secondary" href="/admin/categories">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

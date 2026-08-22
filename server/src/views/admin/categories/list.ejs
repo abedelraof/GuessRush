@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('../../partials/head', { title: 'Categories' }) %></head>
+<body>
+  <div class="flex min-h-screen">
+    <%- include('../../partials/sidebar', { active: 'categories' }) %>
+    <main class="flex-1 p-8 max-w-5xl">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-extrabold text-slate-900">Categories</h1>
+          <p class="text-slate-500 text-sm mt-1">Quiz categories shown on the home screen.</p>
+        </div>
+        <a class="btn-primary" href="/admin/categories/new">+ New category</a>
+      </div>
+
+      <% if (error) { %>
+        <div class="alert-error mb-5">
+          <span>⚠️</span>
+          <span><%= error %></span>
+        </div>
+      <% } %>
+
+      <div class="card overflow-hidden">
+        <table class="table-base">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Name</th>
+              <th>Slug</th>
+              <th>Color</th>
+              <th>Questions</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% categories.forEach(function(c) { %>
+              <tr>
+                <td class="text-xl"><%= c.emoji %></td>
+                <td class="font-semibold text-slate-900"><%= c.name %></td>
+                <td><span class="badge-slate"><%= c.key_slug %></span></td>
+                <td>
+                  <span class="inline-flex items-center gap-2">
+                    <span class="w-3.5 h-3.5 rounded-full border border-black/10" style="background:<%= c.color_hex %>"></span>
+                    <span class="text-slate-500 text-xs"><%= c.color_hex %></span>
+                  </span>
+                </td>
+                <td><span class="badge-brand"><%= c.question_count %></span></td>
+                <td class="text-right">
+                  <div class="inline-flex items-center gap-2">
+                    <a class="btn-secondary py-1.5 px-3 text-xs" href="/admin/categories/<%= c.id %>/edit">Edit</a>
+                    <form method="post" action="/admin/categories/<%= c.id %>/delete" onsubmit="return confirm('Delete this category?');">
+                      <button class="btn-danger" type="submit">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

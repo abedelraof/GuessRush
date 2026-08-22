@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('../../partials/head', { title: 'Questions' }) %></head>
+<body>
+  <div class="flex min-h-screen">
+    <%- include('../../partials/sidebar', { active: 'questions' }) %>
+    <main class="flex-1 p-8 max-w-5xl">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-extrabold text-slate-900">Questions</h1>
+          <p class="text-slate-500 text-sm mt-1">The question bank players are quizzed on.</p>
+        </div>
+        <div class="flex gap-3">
+          <a class="btn-secondary" href="/admin/questions/generate">✨ Generate with AI</a>
+          <a class="btn-primary" href="/admin/questions/new">+ New question</a>
+        </div>
+      </div>
+
+      <% if (error) { %>
+        <div class="alert-error mb-5">
+          <span>⚠️</span>
+          <span><%= error %></span>
+        </div>
+      <% } %>
+
+      <form method="get" action="/admin/questions" class="mb-4">
+        <select name="category_id" onchange="this.form.submit()" class="field-select max-w-xs">
+          <option value="">All categories</option>
+          <% categories.forEach(function(c) { %>
+            <option value="<%= c.id %>" <%= String(selectedCategoryId) === String(c.id) ? 'selected' : '' %>>
+              <%= c.emoji %> <%= c.name %>
+            </option>
+          <% }); %>
+        </select>
+      </form>
+
+      <div class="card overflow-hidden">
+        <table class="table-base">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Category</th>
+              <th>Prompt</th>
+              <th>Timer</th>
+              <th class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% questions.forEach(function(q) { %>
+              <tr>
+                <td><span class="badge-brand"><%= q.type %></span></td>
+                <td class="text-slate-600"><%= q.category_name %></td>
+                <td class="max-w-sm truncate">
+                  <%= q.prompt %>
+                  <% if (q.audio_path) { %>
+                    <a href="<%= q.audio_path %>" target="_blank" rel="noopener" title="Play generated audio" class="ml-1">🔊</a>
+                  <% } %>
+                </td>
+                <td class="text-slate-500"><%= q.timer_seconds ? q.timer_seconds + 's' : '—' %></td>
+                <td class="text-right">
+                  <div class="inline-flex items-center gap-2">
+                    <a class="btn-secondary py-1.5 px-3 text-xs" href="/admin/questions/<%= q.id %>/edit">Edit</a>
+                    <form method="post" action="/admin/questions/<%= q.id %>/delete" onsubmit="return confirm('Delete this question?');">
+                      <button class="btn-danger" type="submit">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            <% }); %>
+            <% if (questions.length === 0) { %>
+              <tr>
+                <td colspan="5" class="text-center text-slate-400 py-10">No questions yet.</td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
