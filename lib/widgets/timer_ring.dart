@@ -14,8 +14,9 @@ class TimerRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final urgent = timeLeft <= 5;
+    final critical = timeLeft <= 3;
     final pct = totalSeconds > 0 ? (timeLeft.clamp(0, totalSeconds)) / totalSeconds : 0.0;
-    return SizedBox(
+    final ring = SizedBox(
       width: 50,
       height: 50,
       child: Stack(
@@ -28,9 +29,24 @@ class TimerRing extends StatelessWidget {
               color: urgent ? AppColors.timerUrgent : AppColors.timerDefault,
             ),
           ),
-          Text('$timeLeft', style: AppFonts.inter(size: 15, weight: FontWeight.w800)),
+          Text(
+            '$timeLeft',
+            style: AppFonts.inter(size: 15, weight: FontWeight.w800, color: critical ? AppColors.timerUrgent : Colors.white),
+          ),
         ],
       ),
+    );
+    if (!critical) return ring;
+    // Re-keyed every second in the final countdown so each tick gets its own
+    // quick pop instead of one continuous animation — urgency without motion
+    // that distracts from the question itself.
+    return TweenAnimationBuilder<double>(
+      key: ValueKey(timeLeft),
+      tween: Tween(begin: 1.18, end: 1.0),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+      builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+      child: ring,
     );
   }
 }

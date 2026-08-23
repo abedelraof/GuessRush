@@ -256,12 +256,14 @@ async function finish(req, res) {
     : 0;
 
   const [[priorBestRow]] = await pool.query(
-    `SELECT MAX(score) AS best FROM game_sessions
+    `SELECT MAX(score) AS best_score, MAX(best_streak) AS best_streak FROM game_sessions
      WHERE player_id = ? AND category_id = ? AND status = 'completed' AND id != ?`,
     [req.user.id, session.category_id, sessionId]
   );
-  const personalBestScore = priorBestRow.best;
+  const personalBestScore = priorBestRow.best_score;
   const isNewPersonalBest = personalBestScore === null || session.score > personalBestScore;
+  const personalBestStreak = priorBestRow.best_streak;
+  const isNewBestStreak = personalBestStreak === null || session.best_streak > personalBestStreak;
 
   const total = session.correct_count + session.wrong_count;
   const questionIds = parseJsonField(session.question_ids);
@@ -282,6 +284,9 @@ async function finish(req, res) {
     duration_ms: durationMs,
     personal_best_score: personalBestScore,
     is_new_personal_best: isNewPersonalBest,
+    personal_best_streak: personalBestStreak,
+    is_new_best_streak: isNewBestStreak,
+    is_perfect_rush: total > 0 && session.wrong_count === 0,
   });
 }
 

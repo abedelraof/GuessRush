@@ -4,9 +4,11 @@ import '../models/question.dart';
 import '../state/quiz_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_styles.dart';
+import '../widgets/animated_counter.dart';
 import '../widgets/audio_question.dart';
 import '../widgets/feedback_overlay.dart';
 import '../widgets/image_question.dart';
+import '../widgets/momentum_meter.dart';
 import '../widgets/option_tile.dart';
 import '../widgets/progressive_question.dart';
 import '../widgets/timer_ring.dart';
@@ -42,41 +44,60 @@ class GameScreen extends StatelessWidget {
                             letterSpacing: 0.5,
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text('⭐', style: TextStyle(fontSize: 14)),
-                              const SizedBox(width: 6),
-                              Text('${controller.score}', style: AppFonts.inter(size: 13, weight: FontWeight.w800)),
-                            ],
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _StreakChip(streak: controller.streak),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Text('⭐', style: TextStyle(fontSize: 14)),
+                                  const SizedBox(width: 6),
+                                  AnimatedCounter(
+                                    value: controller.score,
+                                    style: AppFonts.inter(size: 13, weight: FontWeight.w800),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(999),
-                      child: Container(
-                        height: 8,
-                        color: Colors.white.withValues(alpha: 0.25),
-                        alignment: Alignment.centerLeft,
-                        child: TweenAnimationBuilder<double>(
-                          tween: Tween(begin: 0, end: controller.progressPct.clamp(0, 1)),
-                          duration: const Duration(milliseconds: 400),
-                          curve: Curves.easeOut,
-                          builder: (context, factor, child) => FractionallySizedBox(
-                            widthFactor: factor,
-                            child: child,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: Container(
+                              height: 8,
+                              color: Colors.white.withValues(alpha: 0.25),
+                              alignment: Alignment.centerLeft,
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(begin: 0, end: controller.progressPct.clamp(0, 1)),
+                                duration: const Duration(milliseconds: 400),
+                                curve: Curves.easeOut,
+                                builder: (context, factor, child) => FractionallySizedBox(
+                                  widthFactor: factor,
+                                  child: child,
+                                ),
+                                child: Container(color: AppColors.goldTimer),
+                              ),
+                            ),
                           ),
-                          child: Container(color: AppColors.goldTimer),
                         ),
-                      ),
+                        const SizedBox(width: 12),
+                        MomentumMeter(momentum: controller.momentum),
+                      ],
                     ),
                   ],
                 ),
@@ -177,12 +198,65 @@ class GameScreen extends StatelessWidget {
           Positioned.fill(
             child: FeedbackOverlay(
               feedback: controller.feedback,
-              xpGained: controller.xpGained,
+              answerScore: controller.xpGained,
               streak: controller.streak,
+              streakBeforeAnswer: controller.lastStreakBeforeAnswer,
+              isMilestone: controller.lastIsMilestone,
+              speedLabel: controller.lastSpeedLabel,
+              streakMultiplier: controller.lastStreakMultiplier,
+              difficulty: controller.lastDifficulty,
               correctAnswerText: q.options[controller.gradedCorrectIndex!],
+              momentumTier: controller.momentumTier,
             ),
           ),
       ],
+    );
+  }
+}
+
+class _StreakChip extends StatelessWidget {
+  final int streak;
+
+  const _StreakChip({required this.streak});
+
+  @override
+  Widget build(BuildContext context) {
+    final active = streak > 0;
+    final milestone = kStreakMilestones.contains(streak);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        gradient: active ? AppColors.streakBadge : null,
+        color: active ? null : Colors.white.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(999),
+        boxShadow: milestone
+            ? [BoxShadow(color: AppColors.streakGradA.withValues(alpha: 0.6), blurRadius: 10, spreadRadius: 0.5)]
+            : null,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('🔥', style: TextStyle(fontSize: 13, color: active ? null : Colors.white.withValues(alpha: 0.5))),
+          const SizedBox(width: 4),
+          // Re-keyed on every streak change so the pop-in restarts from scratch
+          // instead of tweening from the old value — a quick "beat" per streak tick.
+          TweenAnimationBuilder<double>(
+            key: ValueKey(streak),
+            tween: Tween(begin: milestone ? 1.6 : 1.25, end: 1.0),
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOut,
+            builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+            child: Text(
+              '$streak',
+              style: AppFonts.inter(
+                size: 13,
+                weight: FontWeight.w800,
+                color: active ? Colors.white : Colors.white.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

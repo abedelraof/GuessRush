@@ -71,7 +71,11 @@ class AppColors {
   // Feedback overlay.
   static const Color feedbackCorrectTitle = Color(0xFF1C882D);
   static const Color feedbackWrongTitle = Color(0xFFCB234A);
+  static const Color feedbackTimeoutTitle = Color(0xFFB25B00);
   static const Color xpGoldText = Color(0xFF974E00);
+  static const Color chipBg = Color(0xFFF0F2F5);
+  static const Color chipText = Color(0xFF3E4858);
+  static const Color streakLostText = Color(0xFF8C93A0);
 
   // Category tiles.
   static const Color catMovies = Color(0xFFA24AFF);

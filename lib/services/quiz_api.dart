@@ -75,6 +75,9 @@ class SessionSummary {
   final int durationMs;
   final int? personalBestScore;
   final bool isNewPersonalBest;
+  final int? personalBestStreak;
+  final bool isNewBestStreak;
+  final bool isPerfectRush;
 
   SessionSummary({
     required this.score,
@@ -88,6 +91,9 @@ class SessionSummary {
     required this.durationMs,
     required this.personalBestScore,
     required this.isNewPersonalBest,
+    required this.personalBestStreak,
+    required this.isNewBestStreak,
+    required this.isPerfectRush,
   });
 
   factory SessionSummary.fromJson(Map<String, dynamic> json) => SessionSummary(
@@ -102,6 +108,9 @@ class SessionSummary {
         durationMs: json['duration_ms'] as int? ?? 0,
         personalBestScore: json['personal_best_score'] as int?,
         isNewPersonalBest: json['is_new_personal_best'] as bool? ?? false,
+        personalBestStreak: json['personal_best_streak'] as int?,
+        isNewBestStreak: json['is_new_best_streak'] as bool? ?? false,
+        isPerfectRush: json['is_perfect_rush'] as bool? ?? false,
       );
 }
 

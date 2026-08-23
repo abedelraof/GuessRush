@@ -121,8 +121,11 @@ class _OptionTileState extends State<OptionTile> with TickerProviderStateMixin {
               color: bg,
               border: Border.all(color: border, width: 2),
               borderRadius: BorderRadius.circular(18),
-              boxShadow: const [
-                BoxShadow(color: Color(0x1F000000), blurRadius: 10, offset: Offset(0, 4)),
+              boxShadow: [
+                const BoxShadow(color: Color(0x1F000000), blurRadius: 10, offset: Offset(0, 4)),
+                // Soft satisfaction glow on the revealed correct answer.
+                if (widget.answered && !widget.isGrading && widget.isCorrectOption)
+                  BoxShadow(color: AppColors.correctBorder.withValues(alpha: 0.35), blurRadius: 14, spreadRadius: 1),
               ],
             ),
             child: Row(

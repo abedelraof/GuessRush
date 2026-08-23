@@ -3,83 +3,143 @@ import 'package:flutter/material.dart';
 import '../state/quiz_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_styles.dart';
+import 'animated_counter.dart';
 
 class FeedbackOverlay extends StatelessWidget {
   final AnswerFeedback feedback;
-  final int xpGained;
+  final int answerScore;
   final int streak;
+  final int streakBeforeAnswer;
+  final bool isMilestone;
+  final String speedLabel;
+  final double streakMultiplier;
+  final String difficulty;
   final String correctAnswerText;
+  final MomentumTier momentumTier;
 
   const FeedbackOverlay({
     super.key,
     required this.feedback,
-    required this.xpGained,
+    required this.answerScore,
     required this.streak,
+    required this.streakBeforeAnswer,
+    required this.isMilestone,
+    required this.speedLabel,
+    required this.streakMultiplier,
+    required this.difficulty,
     required this.correctAnswerText,
+    required this.momentumTier,
   });
+
+  bool get _correct => feedback == AnswerFeedback.correct;
+  bool get _timeout => feedback == AnswerFeedback.timeout;
 
   @override
   Widget build(BuildContext context) {
-    final correct = feedback == AnswerFeedback.correct;
+    final accent = _correct
+        ? AppColors.feedbackCorrectTitle
+        : _timeout
+            ? AppColors.feedbackTimeoutTitle
+            : AppColors.feedbackWrongTitle;
+    final hot = _correct && momentumTier == MomentumTier.max;
+
     return Container(
       color: const Color(0x8C141423),
       alignment: Alignment.center,
       padding: const EdgeInsets.all(30),
       child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.85, end: 1),
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
+        tween: Tween(begin: isMilestone ? 0.7 : 0.85, end: 1),
+        duration: Duration(milliseconds: isMilestone ? 380 : 250),
+        curve: isMilestone ? Curves.elasticOut : Curves.easeOut,
         builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
         child: Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 30),
+          padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 26),
           decoration: BoxDecoration(
             color: AppColors.cardWhite,
             borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(color: Color(0x4D000000), blurRadius: 40, offset: Offset(0, 20)),
+            border: Border(top: BorderSide(color: accent, width: 5)),
+            boxShadow: [
+              const BoxShadow(color: Color(0x4D000000), blurRadius: 40, offset: Offset(0, 20)),
+              if (hot) BoxShadow(color: accent.withValues(alpha: 0.35), blurRadius: 30, spreadRadius: 2),
             ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(correct ? '🎉' : '😬', style: const TextStyle(fontSize: 44)),
-              const SizedBox(height: 8),
-              Text(
-                correct ? 'CORRECT! 🔥' : 'NOT THIS TIME!',
-                style: AppFonts.baloo(
-                  size: 24,
-                  color: correct ? AppColors.feedbackCorrectTitle : AppColors.feedbackWrongTitle,
-                ),
-              ),
+              Text(_icon, style: const TextStyle(fontSize: 40)),
               const SizedBox(height: 6),
-              if (correct) ...[
-                Text(
-                  '+$xpGained XP',
-                  style: AppFonts.inter(size: 16, weight: FontWeight.w800, color: AppColors.xpGoldText),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '🔥 $streak ANSWER STREAK',
-                  style: AppFonts.inter(size: 13, weight: FontWeight.w700, color: AppColors.mutedText),
-                ),
-              ] else ...[
-                RichText(
-                  textAlign: TextAlign.center,
-                  text: TextSpan(
-                    style: AppFonts.inter(size: 14, weight: FontWeight.w600, color: AppColors.mutedText),
-                    children: [
-                      const TextSpan(text: 'The answer was: '),
-                      TextSpan(
-                        text: correctAnswerText,
-                        style: AppFonts.inter(size: 14, weight: FontWeight.w800, color: AppColors.darkText),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              Text(_title, style: AppFonts.baloo(size: 22, color: accent)),
+              const SizedBox(height: 10),
+              if (_correct) ..._correctBody() else ..._missBody(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  String get _icon => _correct ? '🎉' : _timeout ? '⏰' : '😬';
+  String get _title => _correct ? 'CORRECT!' : _timeout ? "TIME'S UP!" : 'NOT THIS TIME!';
+
+  List<Widget> _correctBody() {
+    return [
+      AnimatedCounter(
+        value: answerScore,
+        prefix: '+',
+        style: AppFonts.inter(size: 30, weight: FontWeight.w800, color: AppColors.xpGoldText),
+      ),
+      const SizedBox(height: 10),
+      Wrap(
+        alignment: WrapAlignment.center,
+        spacing: 8,
+        runSpacing: 6,
+        children: [
+          _chip('🔥 $streak STREAK', emphasize: isMilestone),
+          if (streakMultiplier > 1.0) _chip('×${streakMultiplier.toStringAsFixed(1)}'),
+          if (speedLabel.isNotEmpty) _chip(speedLabel),
+          // Easy is the baseline difficulty — surfacing it here would just be noise.
+          if (difficulty != 'easy') _chip(difficulty.toUpperCase()),
+        ],
+      ),
+    ];
+  }
+
+  List<Widget> _missBody() {
+    return [
+      RichText(
+        textAlign: TextAlign.center,
+        text: TextSpan(
+          style: AppFonts.inter(size: 14, weight: FontWeight.w600, color: AppColors.mutedText),
+          children: [
+            const TextSpan(text: 'The answer was: '),
+            TextSpan(
+              text: correctAnswerText,
+              style: AppFonts.inter(size: 14, weight: FontWeight.w800, color: AppColors.darkText),
+            ),
+          ],
+        ),
+      ),
+      if (streakBeforeAnswer > 0) ...[
+        const SizedBox(height: 8),
+        _chip('STREAK LOST · WAS $streakBeforeAnswer', muted: true),
+      ],
+    ];
+  }
+
+  Widget _chip(String text, {bool emphasize = false, bool muted = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: emphasize ? AppColors.streakGradA.withValues(alpha: 0.16) : AppColors.chipBg,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: AppFonts.inter(
+          size: emphasize ? 13 : 12,
+          weight: FontWeight.w800,
+          color: muted ? AppColors.streakLostText : (emphasize ? AppColors.streakGradA : AppColors.chipText),
         ),
       ),
     );

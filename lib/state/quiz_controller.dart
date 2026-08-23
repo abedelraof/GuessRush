@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' hide Category;
+import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../models/category.dart';
 import '../models/player.dart';
@@ -12,7 +13,35 @@ import '../services/quiz_api.dart';
 
 enum AppScreen { boot, login, signup, home, categories, game, results }
 
-enum AnswerFeedback { none, correct, wrong }
+enum AnswerFeedback { none, correct, wrong, timeout }
+
+/// Streak counts that trigger a slightly bigger celebration in the feedback overlay.
+const kStreakMilestones = {3, 5, 7, 10};
+
+/// Rush Momentum (0-100): a lightweight, purely-presentational read on how
+/// well the current Rush is going overall. Distinct from streak — streak is
+/// consecutive correct answers only; momentum also reflects speed and dips
+/// (gently) on wrong answers and (sharply) on timeouts, so a rough patch
+/// shows up even mid-streak-rebuild. Never affects scoring.
+enum MomentumTier { low, medium, high, max }
+
+MomentumTier momentumTierFor(double momentum) {
+  if (momentum >= 75) return MomentumTier.max;
+  if (momentum >= 50) return MomentumTier.high;
+  if (momentum >= 25) return MomentumTier.medium;
+  return MomentumTier.low;
+}
+
+/// Qualitative read on how fast a correct answer was, from the server's
+/// speed_multiplier (1.0 at the deadline, up to 1.5 for a near-instant answer).
+/// Empty for untimed questions, where speed isn't meaningful.
+String speedLabelFor(double speedMultiplier, {required bool hasTimer}) {
+  if (!hasTimer) return '';
+  if (speedMultiplier >= 1.4) return 'INSANE!';
+  if (speedMultiplier >= 1.25) return 'FAST!';
+  if (speedMultiplier >= 1.05) return 'GOOD!';
+  return 'CLOSE!';
+}
 
 class QuizController extends ChangeNotifier {
   QuizController({AuthService? authService, QuizApi? quizApi})
@@ -63,6 +92,19 @@ class QuizController extends ChangeNotifier {
   int durationMs = 0;
   int? personalBestScore;
   bool isNewPersonalBest = false;
+  int? personalBestStreak;
+  bool isNewBestStreak = false;
+  bool isPerfectRush = false;
+
+  // Rush Momentum (0-100) and the breakdown behind the most recent answer,
+  // used by the feedback overlay/HUD — never affects scoring.
+  double momentum = 0;
+  String lastSpeedLabel = '';
+  String lastDifficulty = 'easy';
+  double lastSpeedMultiplier = 1.0;
+  double lastStreakMultiplier = 1.0;
+  int lastStreakBeforeAnswer = 0;
+  bool lastIsMilestone = false;
 
   Timer? _timer;
   Timer? _advanceDelay;
@@ -247,6 +289,7 @@ class QuizController extends ChangeNotifier {
     final Duration interval;
     if (timeLeft <= 3) {
       interval = const Duration(milliseconds: 250);
+      HapticFeedback.selectionClick(); // final-seconds urgency cue
     } else if (timeLeft <= 5) {
       interval = const Duration(milliseconds: 500);
     } else {
@@ -280,6 +323,7 @@ class QuizController extends ChangeNotifier {
 
   Future<void> _submitAnswer(int selectedIndex, int responseTimeMs) async {
     try {
+      final hasTimer = currentQuestion.hasTimer;
       final result = await quizApi.submitAnswer(
         sessionId: sessionId!,
         questionId: currentQuestion.id,
@@ -289,17 +333,36 @@ class QuizController extends ChangeNotifier {
       isGrading = false;
       gradedCorrectIndex = result.correctIndex;
       shakeIndex = (!result.isCorrect && selectedIndex >= 0) ? selectedIndex : null;
+
+      lastStreakBeforeAnswer = streak;
       score = result.score;
       streak = result.streak;
       bestStreak = result.bestStreak;
       xpGained = result.xpGained;
+      lastDifficulty = result.difficulty;
+      lastSpeedMultiplier = result.speedMultiplier;
+      lastStreakMultiplier = result.streakMultiplier;
+      lastSpeedLabel = result.isCorrect ? speedLabelFor(result.speedMultiplier, hasTimer: hasTimer) : '';
+      lastIsMilestone = result.isCorrect && kStreakMilestones.contains(streak);
+      _applyMomentum(isCorrect: result.isCorrect, timedOut: result.timedOut, speedMultiplier: result.speedMultiplier);
+
       if (result.isCorrect) {
         correctCount += 1;
       } else {
         wrongCount += 1;
       }
       responseTimes.add(responseTimeMs / 1000.0);
-      feedback = result.isCorrect ? AnswerFeedback.correct : AnswerFeedback.wrong;
+
+      if (result.timedOut) {
+        feedback = AnswerFeedback.timeout;
+        HapticFeedback.heavyImpact();
+      } else if (result.isCorrect) {
+        feedback = AnswerFeedback.correct;
+        lastIsMilestone ? HapticFeedback.mediumImpact() : HapticFeedback.lightImpact();
+      } else {
+        feedback = AnswerFeedback.wrong;
+        HapticFeedback.mediumImpact();
+      }
       notifyListeners();
 
       _advanceDelay = Timer(const Duration(milliseconds: 1600), _nextQuestion);
@@ -312,6 +375,21 @@ class QuizController extends ChangeNotifier {
       selected = null;
       errorMessage = e.message;
       notifyListeners();
+    }
+  }
+
+  // Momentum deltas are intentionally simple flat amounts, not another scoring
+  // formula: correct nudges it up (more if fast), wrong nudges it down, and a
+  // timeout knocks it down hard — reflecting an overall rough patch even if
+  // streak recovers quickly afterward.
+  void _applyMomentum({required bool isCorrect, required bool timedOut, required double speedMultiplier}) {
+    if (timedOut) {
+      momentum = (momentum - 25).clamp(0, 100);
+    } else if (!isCorrect) {
+      momentum = (momentum - 15).clamp(0, 100);
+    } else {
+      final fast = speedMultiplier >= 1.25;
+      momentum = (momentum + (fast ? 18 : 12)).clamp(0, 100);
     }
   }
 
@@ -337,6 +415,12 @@ class QuizController extends ChangeNotifier {
       durationMs = summary.durationMs;
       personalBestScore = summary.personalBestScore;
       isNewPersonalBest = summary.isNewPersonalBest;
+      personalBestStreak = summary.personalBestStreak;
+      isNewBestStreak = summary.isNewBestStreak;
+      isPerfectRush = summary.isPerfectRush;
+      if (isNewPersonalBest || isNewBestStreak || isPerfectRush) {
+        HapticFeedback.heavyImpact();
+      }
       notifyListeners();
     } on ApiException {
       // Non-fatal: the results screen already shows the locally-tracked
@@ -380,6 +464,13 @@ class QuizController extends ChangeNotifier {
       durationMs = 0;
       personalBestScore = null;
       isNewPersonalBest = false;
+      personalBestStreak = null;
+      isNewBestStreak = false;
+      isPerfectRush = false;
+      momentum = 0;
+      lastSpeedLabel = '';
+      lastStreakBeforeAnswer = 0;
+      lastIsMilestone = false;
       feedback = AnswerFeedback.none;
       isCreatingSession = false;
       screen = AppScreen.game;
@@ -412,6 +503,8 @@ class QuizController extends ChangeNotifier {
   }
 
   double get progressPct => questions.isEmpty ? 0 : qIndex / questions.length;
+
+  MomentumTier get momentumTier => momentumTierFor(momentum);
 
   double get accuracyPct {
     final total = correctCount + wrongCount;

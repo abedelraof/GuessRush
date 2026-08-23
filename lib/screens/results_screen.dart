@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../state/quiz_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_styles.dart';
+import '../widgets/animated_counter.dart';
 import '../widgets/stat_tile.dart';
 
 class ResultsScreen extends StatelessWidget {
@@ -12,6 +13,12 @@ class ResultsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final achievements = <String>[
+      if (controller.isNewPersonalBest) '🏆 NEW PERSONAL BEST',
+      if (controller.isNewBestStreak) '🔥 NEW BEST STREAK',
+      if (controller.isPerfectRush) '💯 PERFECT RUSH',
+    ];
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
@@ -19,15 +26,18 @@ class ResultsScreen extends StatelessWidget {
           children: [
             Text('GAME COMPLETE! 🎉', style: AppFonts.baloo(size: 26)),
             const SizedBox(height: 14),
-            Text(
-              '${controller.score}',
+            AnimatedCounter(
+              value: controller.score,
+              duration: const Duration(milliseconds: 900),
               style: AppFonts.baloo(size: 56, color: AppColors.finalScoreGold),
             ),
-            if (controller.isNewPersonalBest) ...[
-              const SizedBox(height: 6),
-              Text(
-                '🏆 NEW PERSONAL BEST!',
-                style: AppFonts.inter(size: 13, weight: FontWeight.w800, color: AppColors.xpGoldText),
+            if (achievements.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: achievements.map((a) => _AchievementBadge(text: a)).toList(),
               ),
             ] else if (controller.personalBestScore != null) ...[
               const SizedBox(height: 6),
@@ -72,6 +82,11 @@ class ResultsScreen extends StatelessWidget {
                     label: 'Avg Response Time',
                     color: AppColors.darkText,
                   ),
+                  StatTile(
+                    value: '${controller.momentum.round()}%',
+                    label: 'Final Momentum',
+                    color: AppColors.streakGradA,
+                  ),
                 ],
               ),
             ),
@@ -99,17 +114,6 @@ class ResultsScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text('SHARE RESULT', style: AppFonts.inter(size: 14, weight: FontWeight.w800)),
-                ),
-                const SizedBox(height: 10),
                 Material(
                   color: Colors.transparent,
                   child: InkWell(
@@ -117,15 +121,15 @@ class ResultsScreen extends StatelessWidget {
                     onTap: controller.goHome,
                     child: Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
                       alignment: Alignment.center,
                       child: Text(
                         'HOME',
-                        style: AppFonts.inter(
-                          size: 14,
-                          weight: FontWeight.w700,
-                          color: Colors.white.withValues(alpha: 0.8),
-                        ),
+                        style: AppFonts.inter(size: 14, weight: FontWeight.w800, color: Colors.white),
                       ),
                     ),
                   ),
@@ -134,6 +138,33 @@ class ResultsScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _AchievementBadge extends StatelessWidget {
+  final String text;
+
+  const _AchievementBadge({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.6, end: 1.0),
+      duration: const Duration(milliseconds: 380),
+      curve: Curves.elasticOut,
+      builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          gradient: AppColors.streakBadge,
+          borderRadius: BorderRadius.circular(999),
+          boxShadow: [
+            BoxShadow(color: AppColors.streakGradA.withValues(alpha: 0.5), blurRadius: 12, spreadRadius: 0.5),
+          ],
+        ),
+        child: Text(text, style: AppFonts.inter(size: 12, weight: FontWeight.w800)),
       ),
     );
   }
