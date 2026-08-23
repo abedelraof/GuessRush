@@ -20,7 +20,7 @@
       <div class="card p-6">
         <form method="post" action="<%= question.id ? '/admin/questions/' + question.id : '/admin/questions' %>" class="space-y-6">
 
-          <div class="grid grid-cols-3 gap-4">
+          <div class="grid grid-cols-4 gap-4">
             <div>
               <label class="field-label">Category</label>
               <select name="category_id" required class="field-select">
@@ -37,6 +37,14 @@
               <select name="type" id="type-select" class="field-select">
                 <% types.forEach(function(t) { %>
                   <option value="<%= t %>" <%= question.type === t ? 'selected' : '' %>><%= t %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Difficulty</label>
+              <select name="difficulty" class="field-select">
+                <% difficulties.forEach(function(d) { %>
+                  <option value="<%= d %>" <%= (question.difficulty || 'easy') === d ? 'selected' : '' %>><%= d %></option>
                 <% }); %>
               </select>
             </div>

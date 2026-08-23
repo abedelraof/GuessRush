@@ -6,6 +6,7 @@ const controller = require('../controllers/sessions.controller');
 const router = express.Router();
 
 router.post('/', requireAuth, asyncHandler(controller.create));
+router.post('/:id/start', requireAuth, asyncHandler(controller.startQuestion));
 router.post('/:id/answers', requireAuth, asyncHandler(controller.submitAnswer));
 router.post('/:id/finish', requireAuth, asyncHandler(controller.finish));
 

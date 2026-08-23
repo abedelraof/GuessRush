@@ -3,9 +3,16 @@ const { z } = require('zod');
 const { zodOutputFormat } = require('@anthropic-ai/sdk/helpers/zod');
 
 const QUESTION_TYPES = ['image', 'audio', 'video', 'text', 'emoji', 'progressive'];
+const DIFFICULTIES = ['easy', 'medium', 'hard', 'extreme'];
 
 const QuestionSchema = z.object({
   type: z.enum(QUESTION_TYPES),
+  difficulty: z
+    .enum(DIFFICULTIES)
+    .describe(
+      'How hard this question is to guess: easy (common knowledge), medium, hard, or extreme ' +
+        '(obscure/niche). Judge based on the question and options you write, not the category as a whole.'
+    ),
   label: z.string().describe('Short badge text shown on the question screen, include one emoji, e.g. "LOOK & GUESS 👀"'),
   prompt: z.string().describe('The question text shown to the player'),
   instruct_text: z
@@ -52,6 +59,8 @@ async function generateQuestions({ apiKey, categoryName, count }) {
     system:
       'You write trivia quiz questions for a mobile guessing game. Follow the schema exactly. ' +
       'Vary question types across the batch — do not use the same type for every question. ' +
+      'Also vary difficulty across the batch — mix easy, medium, hard, and extreme questions rather than ' +
+      'making them all the same difficulty. ' +
       'This app has no real media assets: for image/audio/video questions, media_placeholder/media_duration ' +
       'are just short flavor-text stand-ins (e.g. "character portrait", "0:12"), never a real file or URL. ' +
       'Keep prompts and options concise, unambiguous, and appropriate for a general audience. ' +

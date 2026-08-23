@@ -6,11 +6,21 @@
     <%- include('../../partials/sidebar', { active: 'questions' }) %>
     <main class="flex-1 p-8 max-w-3xl">
       <a href="/admin/questions/generate" class="text-sm text-slate-500 hover:text-slate-700">← Back</a>
-      <h1 class="text-2xl font-extrabold text-slate-900 mt-2 mb-1">Review suggestions</h1>
-      <p class="text-slate-500 text-sm mb-6">
-        <%= questions.length %> question(s) for <%= category.emoji %> <strong><%= category.name %></strong>.
-        Edit anything, discard what you don't want, then save the rest.
-      </p>
+      <div class="flex items-start justify-between gap-4 mt-2 mb-6">
+        <div>
+          <h1 class="text-2xl font-extrabold text-slate-900 mb-1">Review suggestions</h1>
+          <p class="text-slate-500 text-sm">
+            <%= questions.length %> question(s) for <%= category.emoji %> <strong><%= category.name %></strong>.
+            Edit anything, discard what you don't want, then save the rest.
+          </p>
+        </div>
+        <div class="text-right shrink-0">
+          <button type="button" id="generate-all-btn" class="generate-all-btn btn-primary">
+            ✨ Generate AI Content
+          </button>
+          <p id="generate-all-status" class="text-xs text-slate-500 mt-1"></p>
+        </div>
+      </div>
 
       <form method="post" action="/admin/questions/generate/confirm" id="review-form">
         <input type="hidden" name="category_id" value="<%= category.id %>">
@@ -24,12 +34,20 @@
               </div>
 
               <div class="space-y-5">
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-3 gap-4">
                   <div>
                     <label class="field-label">Type</label>
                     <select name="questions[<%= q.key %>][type]" class="field-select type-select">
                       <% types.forEach(function(t) { %>
                         <option value="<%= t %>" <%= q.type === t ? 'selected' : '' %>><%= t %></option>
+                      <% }); %>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="field-label">Difficulty</label>
+                    <select name="questions[<%= q.key %>][difficulty]" class="field-select">
+                      <% difficulties.forEach(function(d) { %>
+                        <option value="<%= d %>" <%= (q.difficulty || 'easy') === d ? 'selected' : '' %>><%= d %></option>
                       <% }); %>
                     </select>
                   </div>

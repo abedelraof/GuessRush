@@ -27,6 +27,10 @@ class ApiClient {
 
   static final ApiClient instance = ApiClient._();
 
+  /// Server origin, for resolving media paths (audio_path, option_image_paths)
+  /// returned by the API as root-relative URLs (e.g. "/public/audio/5.flac").
+  static String get baseUrl => _baseUrl;
+
   static const _tokenKey = 'auth_token';
   String? _cachedToken;
 

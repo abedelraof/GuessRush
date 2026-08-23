@@ -23,6 +23,19 @@ class ResultsScreen extends StatelessWidget {
               '${controller.score}',
               style: AppFonts.baloo(size: 56, color: AppColors.finalScoreGold),
             ),
+            if (controller.isNewPersonalBest) ...[
+              const SizedBox(height: 6),
+              Text(
+                '🏆 NEW PERSONAL BEST!',
+                style: AppFonts.inter(size: 13, weight: FontWeight.w800, color: AppColors.xpGoldText),
+              ),
+            ] else if (controller.personalBestScore != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Personal best: ${controller.personalBestScore}',
+                style: AppFonts.inter(size: 13, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.75)),
+              ),
+            ],
             const SizedBox(height: 22),
             Container(
               width: double.infinity,

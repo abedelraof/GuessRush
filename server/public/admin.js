@@ -67,6 +67,68 @@ async function runGenerateAudio(btn) {
   }
 }
 
+// "Generate AI Content" — walks every audio/image generate button on the review
+// screen, in the page's top-to-bottom order, and runs each one exactly like a
+// real click: scrolled into view first so the admin can watch it happen, then
+// awaited to completion before moving to the next. Never skips a button because
+// of a failure — runGenerateAudio/runGenerateImage already catch their own
+// errors internally (they show the inline error span and resolve normally), so
+// one failure just leaves that clip/image blank and the run continues.
+
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.generate-all-btn');
+  if (!btn) return;
+  e.preventDefault();
+  runGenerateAllContent(btn);
+});
+
+function sleep(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function runGenerateAllContent(triggerBtn) {
+  var statusEl = document.getElementById('generate-all-status');
+  var targets = Array.prototype.slice.call(
+    document.querySelectorAll('.generate-audio-btn, .generate-image-btn')
+  );
+
+  if (targets.length === 0) {
+    if (statusEl) statusEl.textContent = 'Nothing to generate.';
+    return;
+  }
+
+  var originalLabel = triggerBtn.textContent;
+  triggerBtn.disabled = true;
+
+  for (var i = 0; i < targets.length; i++) {
+    var btn = targets[i];
+    // A card/option may have been discarded since the run started — nothing to click.
+    if (!document.body.contains(btn)) continue;
+
+    var n = i + 1;
+    triggerBtn.textContent = 'Generating ' + n + ' / ' + targets.length + '…';
+    if (statusEl) statusEl.textContent = n + ' of ' + targets.length;
+
+    btn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await sleep(450); // let the scroll finish so the admin can actually see which button is next
+    btn.classList.add('ring-4', 'ring-brand-400', 'ring-offset-2');
+
+    if (btn.classList.contains('generate-audio-btn')) {
+      await runGenerateAudio(btn);
+    } else {
+      await runGenerateImage(btn);
+    }
+
+    btn.classList.remove('ring-4', 'ring-brand-400', 'ring-offset-2');
+  }
+
+  triggerBtn.disabled = false;
+  triggerBtn.textContent = originalLabel;
+  if (statusEl) statusEl.textContent = 'Done — ' + targets.length + ' generated.';
+}
+
 // Shared "Generate Image" button behavior, one per answer option. Same shape as
 // the audio handler above but posts { prompt, option_index } and targets an
 // <img> instead of an <audio> element. Each option row is its own `data-scope`

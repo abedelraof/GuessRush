@@ -104,6 +104,17 @@ class GameScreen extends StatelessWidget {
                             TimerRing(timeLeft: controller.timeLeft, totalSeconds: q.timerSeconds),
                         ],
                       ),
+                      if (controller.audioError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '🔇 ${controller.audioError}',
+                          style: AppFonts.inter(
+                            size: 11,
+                            weight: FontWeight.w600,
+                            color: Colors.white.withValues(alpha: 0.75),
+                          ),
+                        ),
+                      ],
                       if (controller.errorMessage != null) ...[
                         const SizedBox(height: 10),
                         Container(
@@ -145,6 +156,7 @@ class GameScreen extends StatelessWidget {
                               index: i,
                               text: q.options[i],
                               imgBg: AppColors.optionHues[i % 4],
+                              imageUrl: i < q.optionImageUrls.length ? q.optionImageUrls[i] : null,
                               answered: controller.answered,
                               isGrading: controller.isGrading,
                               isCorrectOption: i == controller.gradedCorrectIndex,

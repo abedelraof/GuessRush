@@ -7,6 +7,7 @@ class OptionTile extends StatefulWidget {
   final int index;
   final String text;
   final Color imgBg;
+  final String? imageUrl;
   final VoidCallback onTap;
   final bool answered;
   final bool isGrading;
@@ -19,6 +20,7 @@ class OptionTile extends StatefulWidget {
     required this.index,
     required this.text,
     required this.imgBg,
+    this.imageUrl,
     required this.onTap,
     required this.answered,
     required this.isGrading,
@@ -128,32 +130,46 @@ class _OptionTileState extends State<OptionTile> with TickerProviderStateMixin {
                 Container(
                   width: 44,
                   height: 44,
+                  clipBehavior: Clip.antiAlias,
                   decoration: BoxDecoration(
                     color: widget.imgBg,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Align(
-                    alignment: Alignment.topLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.all(2),
-                      child: Container(
-                        width: 15,
-                        height: 15,
-                        decoration: const BoxDecoration(
-                          color: Color(0xE6FFFFFF),
-                          shape: BoxShape.circle,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (widget.imageUrl != null)
+                        Image.network(
+                          widget.imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                          loadingBuilder: (context, child, progress) =>
+                              progress == null ? child : const SizedBox.shrink(),
                         ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          _letters[widget.index],
-                          style: AppFonts.inter(
-                            size: 9,
-                            weight: FontWeight.w800,
-                            color: AppColors.mutedText,
+                      Align(
+                        alignment: Alignment.topLeft,
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
+                          child: Container(
+                            width: 15,
+                            height: 15,
+                            decoration: const BoxDecoration(
+                              color: Color(0xE6FFFFFF),
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              _letters[widget.index],
+                              style: AppFonts.inter(
+                                size: 9,
+                                weight: FontWeight.w800,
+                                color: AppColors.mutedText,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 10),

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Allows plain-HTTP traffic to the local dev API server. Dart's own networking
+  (used by package:http for auth/categories/sessions) isn't subject to Android's
+  cleartext restriction, but native platform components are — notably
+  audioplayers' ExoPlayer backend, which otherwise silently fails to fetch
+  http:// audio and times out waiting for the "prepared" event.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

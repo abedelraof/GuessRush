@@ -39,6 +39,7 @@
           <thead>
             <tr>
               <th>Type</th>
+              <th>Difficulty</th>
               <th>Category</th>
               <th>Prompt</th>
               <th>Timer</th>
@@ -49,6 +50,7 @@
             <% questions.forEach(function(q) { %>
               <tr>
                 <td><span class="badge-brand"><%= q.type %></span></td>
+                <td><span class="badge-brand"><%= q.difficulty %></span></td>
                 <td class="text-slate-600"><%= q.category_name %></td>
                 <td class="max-w-sm truncate">
                   <%= q.prompt %>
@@ -69,7 +71,7 @@
             <% }); %>
             <% if (questions.length === 0) { %>
               <tr>
-                <td colspan="5" class="text-center text-slate-400 py-10">No questions yet.</td>
+                <td colspan="6" class="text-center text-slate-400 py-10">No questions yet.</td>
               </tr>
             <% } %>
           </tbody>

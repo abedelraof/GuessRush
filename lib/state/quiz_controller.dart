@@ -6,9 +6,9 @@ import '../models/category.dart';
 import '../models/player.dart';
 import '../models/question.dart';
 import '../services/api_client.dart';
+import '../services/audio_player_service.dart';
 import '../services/auth_service.dart';
 import '../services/quiz_api.dart';
-import '../services/tts_service.dart';
 
 enum AppScreen { boot, login, signup, home, categories, game, results }
 
@@ -54,11 +54,19 @@ class QuizController extends ChangeNotifier {
   AnswerFeedback feedback = AnswerFeedback.none;
   int xpGained = 0;
   bool isPlaying = false;
+  String? audioError;
   DateTime? _qStartTs;
   int? shakeIndex;
 
+  // Server-authoritative Rush result, populated once /finish returns.
+  int avgResponseTimeMs = 0;
+  int durationMs = 0;
+  int? personalBestScore;
+  bool isNewPersonalBest = false;
+
   Timer? _timer;
   Timer? _advanceDelay;
+  Timer? _tickTimer;
 
   Question get currentQuestion => questions[qIndex];
   int get questionTotal => questions.length;
@@ -132,7 +140,7 @@ class QuizController extends ChangeNotifier {
 
   Future<void> logout() async {
     _clearAllTimers();
-    TtsService.instance.stop();
+    AudioPlayerService.instance.stop();
     await authService.logout();
     player = null;
     categories = [];
@@ -150,6 +158,8 @@ class QuizController extends ChangeNotifier {
   void _clearAllTimers() {
     _clearTimer();
     _advanceDelay?.cancel();
+    _tickTimer?.cancel();
+    _tickTimer = null;
   }
 
   int _elapsedMs() => _qStartTs == null ? 0 : DateTime.now().difference(_qStartTs!).inMilliseconds;
@@ -158,6 +168,8 @@ class QuizController extends ChangeNotifier {
 
   void startQuestion(int idx) {
     _clearTimer();
+    _tickTimer?.cancel();
+    _tickTimer = null;
     final q = questions[idx];
     selected = null;
     answered = false;
@@ -168,9 +180,10 @@ class QuizController extends ChangeNotifier {
     clueCount = 1;
     isPlaying = false;
     shakeIndex = null;
+    audioError = null;
     _qStartTs = DateTime.now();
     notifyListeners();
-    TtsService.instance.speak(q.prompt ?? '');
+    _playQuestionAudio(q.audioUrl, q.hasTimer);
 
     if (q.hasTimer) {
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -188,7 +201,62 @@ class QuizController extends ChangeNotifier {
     }
   }
 
+  Future<void> _playQuestionAudio(String? url, bool hasTimer) async {
+    if (url == null) {
+      audioError = 'No narration generated for this question yet.';
+      notifyListeners();
+      if (hasTimer) _startTicking();
+      return;
+    }
+    try {
+      // Waits for the clip to actually finish (not just start) so the
+      // countdown tick only kicks in once the narrator stops speaking.
+      await AudioPlayerService.instance.playUrl(url);
+    } catch (e) {
+      audioError = 'Audio failed to play: $e';
+      notifyListeners();
+    } finally {
+      if (hasTimer) _startTicking();
+    }
+  }
+
+  // Countdown tick sound: starts once narration finishes, and re-schedules
+  // itself faster as time runs low so it audibly speeds up near the end.
+  void _startTicking() {
+    _tickTimer?.cancel();
+    _scheduleTick();
+    _pingQuestionStart();
+  }
+
+  // Tells the server the countdown is actually starting now, so its
+  // authoritative timing clock for this question lines up with what the
+  // player sees rather than the moment the question merely became current.
+  // Fire-and-forget: if it fails, grading still works off the earlier
+  // server-side fallback timestamp, just less generously.
+  Future<void> _pingQuestionStart() async {
+    try {
+      await quizApi.startQuestion(sessionId: sessionId!, questionId: currentQuestion.id);
+    } on ApiException {
+      // Ignored — see comment above.
+    }
+  }
+
+  void _scheduleTick() {
+    if (answered || timeLeft <= 0) return;
+    AudioPlayerService.instance.playTick();
+    final Duration interval;
+    if (timeLeft <= 3) {
+      interval = const Duration(milliseconds: 250);
+    } else if (timeLeft <= 5) {
+      interval = const Duration(milliseconds: 500);
+    } else {
+      interval = const Duration(seconds: 1);
+    }
+    _tickTimer = Timer(interval, _scheduleTick);
+  }
+
   void _handleTimeout() {
+    _tickTimer?.cancel();
     answered = true;
     selected = -1;
     isGrading = true;
@@ -200,6 +268,7 @@ class QuizController extends ChangeNotifier {
   Future<void> selectAnswer(int i) async {
     if (answered || isGrading) return;
     _clearTimer();
+    _tickTimer?.cancel();
     final rt = _elapsedMs();
     selected = i;
     answered = true;
@@ -233,12 +302,6 @@ class QuizController extends ChangeNotifier {
       feedback = result.isCorrect ? AnswerFeedback.correct : AnswerFeedback.wrong;
       notifyListeners();
 
-      if (result.isCorrect) {
-        TtsService.instance.speak('Correct! Plus ${result.xpGained} XP.');
-      } else {
-        final answerText = currentQuestion.options[result.correctIndex];
-        TtsService.instance.speak('Not this time. The answer was $answerText.');
-      }
       _advanceDelay = Timer(const Duration(milliseconds: 1600), _nextQuestion);
     } on ApiException catch (e) {
       // No local fallback grading — that would reopen the cheat vector
@@ -268,16 +331,18 @@ class QuizController extends ChangeNotifier {
     screen = AppScreen.results;
     feedback = AnswerFeedback.none;
     notifyListeners();
-    TtsService.instance.speak(
-      'Game complete! You scored $score points, with $correctCount correct '
-      'and $wrongCount wrong. Best streak: $bestStreak.',
-    );
     try {
-      await quizApi.finishSession(sessionId!);
+      final summary = await quizApi.finishSession(sessionId!);
+      avgResponseTimeMs = summary.avgResponseTimeMs;
+      durationMs = summary.durationMs;
+      personalBestScore = summary.personalBestScore;
+      isNewPersonalBest = summary.isNewPersonalBest;
+      notifyListeners();
     } on ApiException {
       // Non-fatal: the results screen already shows the locally-tracked
       // totals, which mirror the server's authoritative per-answer
-      // responses. /finish just marks the session row completed.
+      // responses. /finish just adds a few summary-only fields (avg
+      // response time, duration, personal best) on top of those.
     }
   }
 
@@ -288,7 +353,7 @@ class QuizController extends ChangeNotifier {
 
   void goHome() {
     _clearAllTimers();
-    TtsService.instance.stop();
+    AudioPlayerService.instance.stop();
     sessionId = null;
     questions = [];
     screen = AppScreen.home;
@@ -311,6 +376,10 @@ class QuizController extends ChangeNotifier {
       correctCount = 0;
       wrongCount = 0;
       responseTimes.clear();
+      avgResponseTimeMs = 0;
+      durationMs = 0;
+      personalBestScore = null;
+      isNewPersonalBest = false;
       feedback = AnswerFeedback.none;
       isCreatingSession = false;
       screen = AppScreen.game;
@@ -350,6 +419,9 @@ class QuizController extends ChangeNotifier {
   }
 
   double get avgResponseTime {
+    // Prefer the server-authoritative figure once /finish has returned;
+    // falls back to the locally-tracked (client-reported) average until then.
+    if (avgResponseTimeMs > 0) return avgResponseTimeMs / 1000.0;
     if (responseTimes.isEmpty) return 0;
     return responseTimes.reduce((a, b) => a + b) / responseTimes.length;
   }
@@ -357,7 +429,7 @@ class QuizController extends ChangeNotifier {
   @override
   void dispose() {
     _clearAllTimers();
-    TtsService.instance.stop();
+    AudioPlayerService.instance.stop();
     super.dispose();
   }
 }

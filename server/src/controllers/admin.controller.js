@@ -10,6 +10,7 @@ const audioStorage = require('../utils/audioStorage');
 const imageStorage = require('../utils/imageStorage');
 
 const QUESTION_TYPES = ['image', 'audio', 'video', 'text', 'emoji', 'progressive'];
+const DIFFICULTIES = ['easy', 'medium', 'hard', 'extreme'];
 const MAX_CLUES = 6;
 const CLAUDE_KEY_SETTING = 'anthropic_api_key';
 const TTS_KEY_SETTING = 'tts_api_key';
@@ -165,6 +166,7 @@ function emptyQuestionForm() {
     id: null,
     category_id: '',
     type: 'text',
+    difficulty: 'easy',
     label: '',
     prompt: '',
     instruct_text: '',
@@ -188,6 +190,7 @@ async function newQuestionForm(req, res) {
     categories,
     question: emptyQuestionForm(),
     types: QUESTION_TYPES,
+    difficulties: DIFFICULTIES,
     maxClues: MAX_CLUES,
     error: null,
   });
@@ -219,6 +222,7 @@ async function createQuestion(req, res) {
   const body = req.body || {};
   const options = collectOptionsFromBody(body);
   const correctIndex = Number(body.correct_index);
+  const difficulty = DIFFICULTIES.includes(body.difficulty) ? body.difficulty : 'easy';
   const [categories] = await pool.query('SELECT * FROM categories ORDER BY name');
 
   const isValid =
@@ -235,8 +239,9 @@ async function createQuestion(req, res) {
     return res.status(400).render('admin/questions/form', {
       admin: req.admin,
       categories,
-      question: { ...body, options, clues: collectCluesFromBody(body) },
+      question: { ...body, options, difficulty, clues: collectCluesFromBody(body) },
       types: QUESTION_TYPES,
+      difficulties: DIFFICULTIES,
       maxClues: MAX_CLUES,
       error: 'Please fill in all required fields (category, type, label, prompt, all 4 options, correct answer).',
     });
@@ -247,11 +252,12 @@ async function createQuestion(req, res) {
 
   const [result] = await pool.query(
     `INSERT INTO questions
-      (category_id, type, label, prompt, instruct_text, media_placeholder, media_duration, emojis, options, option_image_prompts, correct_index, clues, timer_seconds)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (category_id, type, difficulty, label, prompt, instruct_text, media_placeholder, media_duration, emojis, options, option_image_prompts, correct_index, clues, timer_seconds)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       body.category_id,
       body.type,
+      difficulty,
       body.label.trim(),
       body.prompt.trim(),
       body.instruct_text ? body.instruct_text.trim() : null,
@@ -300,6 +306,7 @@ async function editQuestionForm(req, res) {
       clues: row.clues ? parseJsonField(row.clues) : [],
     },
     types: QUESTION_TYPES,
+    difficulties: DIFFICULTIES,
     maxClues: MAX_CLUES,
     error: null,
   });
@@ -309,17 +316,19 @@ async function updateQuestion(req, res) {
   const body = req.body || {};
   const options = collectOptionsFromBody(body);
   const correctIndex = Number(body.correct_index);
+  const difficulty = DIFFICULTIES.includes(body.difficulty) ? body.difficulty : 'easy';
   const clues = body.type === 'progressive' ? collectCluesFromBody(body) : null;
   const optionImagePrompts = collectOptionImagePromptsFromBody(body);
 
   await pool.query(
     `UPDATE questions SET
-      category_id=?, type=?, label=?, prompt=?, instruct_text=?, media_placeholder=?, media_duration=?, emojis=?,
+      category_id=?, type=?, difficulty=?, label=?, prompt=?, instruct_text=?, media_placeholder=?, media_duration=?, emojis=?,
       options=?, option_image_prompts=?, correct_index=?, clues=?, timer_seconds=?
      WHERE id=?`,
     [
       body.category_id,
       body.type,
+      difficulty,
       body.label.trim(),
       body.prompt.trim(),
       body.instruct_text ? body.instruct_text.trim() : null,
@@ -412,6 +421,7 @@ async function generatePreview(req, res) {
     category,
     questions,
     types: QUESTION_TYPES,
+    difficulties: DIFFICULTIES,
     maxClues: MAX_CLUES,
     error: null,
   });
@@ -434,6 +444,7 @@ async function generateConfirm(req, res) {
   for (const row of rows) {
     const options = collectOptionsFromBody(row);
     const correctIndex = Number(row.correct_index);
+    const difficulty = DIFFICULTIES.includes(row.difficulty) ? row.difficulty : 'easy';
     const isValid =
       QUESTION_TYPES.includes(row.type) &&
       row.label &&
@@ -448,11 +459,12 @@ async function generateConfirm(req, res) {
     const optionImagePrompts = collectOptionImagePromptsFromBody(row);
     const [result] = await pool.query(
       `INSERT INTO questions
-        (category_id, type, label, prompt, instruct_text, media_placeholder, media_duration, emojis, options, option_image_prompts, correct_index, clues, timer_seconds)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (category_id, type, difficulty, label, prompt, instruct_text, media_placeholder, media_duration, emojis, options, option_image_prompts, correct_index, clues, timer_seconds)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         categoryId,
         row.type,
+        difficulty,
         row.label.trim(),
         row.prompt.trim(),
         row.instruct_text ? row.instruct_text.trim() : null,

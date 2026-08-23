@@ -18,6 +18,7 @@ const QUESTIONS = [
   {
     category_slug: 'movies',
     type: 'image',
+    difficulty: 'easy',
     label: 'LOOK & GUESS 👀',
     prompt: 'Who is this character?',
     media_placeholder: 'character portrait',
@@ -31,6 +32,7 @@ const QUESTIONS = [
   {
     category_slug: 'movies',
     type: 'audio',
+    difficulty: 'medium',
     label: 'LISTEN & GUESS 🎧',
     prompt: 'Who is speaking?',
     media_placeholder: null,
@@ -44,6 +46,7 @@ const QUESTIONS = [
   {
     category_slug: 'movies',
     type: 'video',
+    difficulty: 'medium',
     label: 'WATCH & GUESS 🎬',
     prompt: 'Which movie is this from?',
     media_placeholder: null,
@@ -57,6 +60,7 @@ const QUESTIONS = [
   {
     category_slug: 'movies',
     type: 'text',
+    difficulty: 'hard',
     label: 'READ & ANSWER 🧠',
     prompt: 'Which movie features a talking snowman named Olaf?',
     media_placeholder: null,
@@ -70,6 +74,7 @@ const QUESTIONS = [
   {
     category_slug: 'movies',
     type: 'emoji',
+    difficulty: 'hard',
     label: 'DECODE & GUESS 🔤',
     prompt: 'Guess the movie',
     media_placeholder: null,
@@ -83,6 +88,7 @@ const QUESTIONS = [
   {
     category_slug: 'movies',
     type: 'progressive',
+    difficulty: 'extreme',
     label: 'CLUE BY CLUE 🕵️',
     prompt: 'Guess the character',
     media_placeholder: null,
@@ -129,11 +135,12 @@ async function seed() {
     for (const q of QUESTIONS) {
       await pool.query(
         `INSERT INTO questions
-          (category_id, type, label, prompt, media_placeholder, media_duration, emojis, options, correct_index, clues, timer_seconds)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (category_id, type, difficulty, label, prompt, media_placeholder, media_duration, emojis, options, correct_index, clues, timer_seconds)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           categoryIds[q.category_slug],
           q.type,
+          q.difficulty,
           q.label,
           q.prompt,
           q.media_placeholder,
