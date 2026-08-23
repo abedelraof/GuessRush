@@ -3,6 +3,16 @@ const ApiError = require('../utils/ApiError');
 const questionSelectionService = require('../services/questionSelection.service');
 const { evaluateTiming } = require('../services/rushTiming.service');
 const { scoreAnswer } = require('../services/scoring.service');
+const { applyRushProgression } = require('../services/playerProgression.service');
+const { levelForXp } = require('../services/progression.service');
+const { ACHIEVEMENTS } = require('../config/progression.config');
+
+function describeAchievements(keys) {
+  return keys
+    .map((key) => ACHIEVEMENTS.find((a) => a.key === key))
+    .filter(Boolean)
+    .map((a) => ({ key: a.key, name: a.name, description: a.description }));
+}
 
 // mysql2 auto-parses JSON columns in some configurations but not others
 // depending on column metadata — handle both a string and an already-parsed value.
@@ -233,61 +243,103 @@ async function submitAnswer(req, res) {
 async function finish(req, res) {
   const sessionId = Number(req.params.id);
 
-  const [result] = await pool.query(
-    `UPDATE game_sessions SET status='completed', ended_at=NOW()
-     WHERE id=? AND player_id=? AND status='in_progress'`,
-    [sessionId, req.user.id]
-  );
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
 
-  const [rows] = await pool.query('SELECT * FROM game_sessions WHERE id = ? AND player_id = ?', [
-    sessionId,
-    req.user.id,
-  ]);
-  const session = rows[0];
-  if (!session) throw new ApiError(404, 'Session not found');
+    const [sessionRows] = await connection.query('SELECT * FROM game_sessions WHERE id = ? FOR UPDATE', [sessionId]);
+    const session = sessionRows[0];
+    if (!session) throw new ApiError(404, 'Session not found');
+    if (session.player_id !== req.user.id) throw new ApiError(403, 'Not your session');
+    if (session.status !== 'in_progress' && session.status !== 'completed') {
+      throw new ApiError(409, 'Could not finish session');
+    }
 
-  if (result.affectedRows === 0 && session.status !== 'completed') {
-    throw new ApiError(409, 'Could not finish session');
+    const total = session.correct_count + session.wrong_count;
+    const isPerfectRush = total > 0 && session.wrong_count === 0;
+
+    const [answerRows] = await connection.query('SELECT server_elapsed_ms FROM answers WHERE session_id = ?', [sessionId]);
+    const sumResponseTimeMs = answerRows.reduce((sum, a) => sum + a.server_elapsed_ms, 0);
+    const avgResponseTimeMs = answerRows.length ? Math.round(sumResponseTimeMs / answerRows.length) : 0;
+
+    // Progression (XP/level/records/achievements) is applied exactly once, only on the
+    // in_progress -> completed transition. A repeat call to /finish (retry, double-tap,
+    // refetching the summary) must NEVER re-award — it just replays what was already
+    // granted, read back from the player's current persisted record.
+    const justCompleted = session.status === 'in_progress';
+    let progression;
+
+    if (justCompleted) {
+      await connection.query(`UPDATE game_sessions SET status = 'completed', ended_at = NOW() WHERE id = ?`, [sessionId]);
+
+      const applied = await applyRushProgression(connection, {
+        playerId: req.user.id,
+        rushScore: session.score,
+        correctCount: session.correct_count,
+        bestStreak: session.best_streak,
+        isPerfectRush,
+        sumResponseTimeMs,
+        questionsAnswered: total,
+        accuracyPct: total > 0 ? Math.round((session.correct_count / total) * 100) : 0,
+      });
+
+      await connection.query('UPDATE game_sessions SET xp_awarded = ?, progression_applied = 1 WHERE id = ?', [
+        applied.xpAwarded,
+        sessionId,
+      ]);
+
+      progression = applied;
+    } else {
+      const [[player]] = await connection.query('SELECT * FROM players WHERE id = ?', [req.user.id]);
+      const levelInfo = levelForXp(player.lifetime_xp);
+      progression = {
+        xpAwarded: session.xp_awarded,
+        lifetimeXp: player.lifetime_xp,
+        level: levelInfo.level,
+        leveledUp: false,
+        xpIntoLevel: levelInfo.xpIntoLevel,
+        xpForNextLevel: levelInfo.xpForNextLevel,
+        isNewBestScore: false,
+        isNewBestStreak: false,
+        newlyUnlockedAchievements: [],
+      };
+    }
+
+    await connection.commit();
+
+    const questionIds = parseJsonField(session.question_ids);
+    const endedAt = justCompleted ? new Date() : session.ended_at;
+    const durationMs = endedAt ? new Date(endedAt).getTime() - new Date(session.started_at).getTime() : 0;
+
+    res.json({
+      session_id: session.id,
+      score: session.score,
+      questions_total: questionIds.length,
+      questions_answered: total,
+      correct_count: session.correct_count,
+      wrong_count: session.wrong_count,
+      best_streak: session.best_streak,
+      accuracy_pct: total > 0 ? Math.round((session.correct_count / total) * 100) : 0,
+      avg_response_time_ms: avgResponseTimeMs,
+      duration_ms: durationMs,
+      is_perfect_rush: isPerfectRush,
+      // Lifetime progression — server-authoritative, applied once (see above).
+      xp_awarded: progression.xpAwarded,
+      lifetime_xp: progression.lifetimeXp,
+      level: progression.level,
+      leveled_up: progression.leveledUp,
+      xp_into_level: progression.xpIntoLevel,
+      xp_for_next_level: progression.xpForNextLevel,
+      is_new_personal_best: progression.isNewBestScore,
+      is_new_best_streak: progression.isNewBestStreak,
+      newly_unlocked_achievements: describeAchievements(progression.newlyUnlockedAchievements),
+    });
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
   }
-
-  const [answerRows] = await pool.query('SELECT server_elapsed_ms FROM answers WHERE session_id = ?', [sessionId]);
-  const avgResponseTimeMs = answerRows.length
-    ? Math.round(answerRows.reduce((sum, a) => sum + a.server_elapsed_ms, 0) / answerRows.length)
-    : 0;
-
-  const [[priorBestRow]] = await pool.query(
-    `SELECT MAX(score) AS best_score, MAX(best_streak) AS best_streak FROM game_sessions
-     WHERE player_id = ? AND category_id = ? AND status = 'completed' AND id != ?`,
-    [req.user.id, session.category_id, sessionId]
-  );
-  const personalBestScore = priorBestRow.best_score;
-  const isNewPersonalBest = personalBestScore === null || session.score > personalBestScore;
-  const personalBestStreak = priorBestRow.best_streak;
-  const isNewBestStreak = personalBestStreak === null || session.best_streak > personalBestStreak;
-
-  const total = session.correct_count + session.wrong_count;
-  const questionIds = parseJsonField(session.question_ids);
-  const durationMs = session.ended_at
-    ? new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()
-    : 0;
-
-  res.json({
-    session_id: session.id,
-    score: session.score,
-    questions_total: questionIds.length,
-    questions_answered: total,
-    correct_count: session.correct_count,
-    wrong_count: session.wrong_count,
-    best_streak: session.best_streak,
-    accuracy_pct: total > 0 ? Math.round((session.correct_count / total) * 100) : 0,
-    avg_response_time_ms: avgResponseTimeMs,
-    duration_ms: durationMs,
-    personal_best_score: personalBestScore,
-    is_new_personal_best: isNewPersonalBest,
-    personal_best_streak: personalBestStreak,
-    is_new_best_streak: isNewBestStreak,
-    is_perfect_rush: total > 0 && session.wrong_count === 0,
-  });
 }
 
 module.exports = { create, startQuestion, submitAnswer, finish };

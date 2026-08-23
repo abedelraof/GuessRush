@@ -8,6 +8,8 @@ const ttsService = require('../services/tts.service');
 const imageService = require('../services/image.service');
 const audioStorage = require('../utils/audioStorage');
 const imageStorage = require('../utils/imageStorage');
+const { levelForXp } = require('../services/progression.service');
+const { ACHIEVEMENTS } = require('../config/progression.config');
 
 const QUESTION_TYPES = ['image', 'audio', 'video', 'text', 'emoji', 'progressive'];
 const DIFFICULTIES = ['easy', 'medium', 'hard', 'extreme'];
@@ -72,6 +74,42 @@ async function dashboard(req, res) {
   res.render('admin/dashboard', {
     admin: req.admin,
     counts: { categories: categories.n, questions: questions.n, players: players.n, sessions: sessions.n },
+  });
+}
+
+// ---- Players (progression visibility — read-only; achievements are configuration-driven,
+// defined in progression.config.js, so there's no editor here, just a view). ----
+
+async function listPlayers(req, res) {
+  const [players] = await pool.query(
+    `SELECT p.*, (SELECT COUNT(*) FROM player_achievements pa WHERE pa.player_id = p.id) AS achievements_unlocked
+     FROM players p WHERE p.role = 'player' ORDER BY p.lifetime_xp DESC`
+  );
+  res.render('admin/players/list', {
+    admin: req.admin,
+    players: players.map((p) => ({ ...p, level: levelForXp(p.lifetime_xp).level })),
+    totalAchievements: ACHIEVEMENTS.length,
+  });
+}
+
+async function playerDetail(req, res) {
+  const [[player]] = await pool.query('SELECT * FROM players WHERE id = ? AND role = "player"', [req.params.id]);
+  if (!player) return res.status(404).send('Player not found');
+
+  const [unlockedRows] = await pool.query(
+    'SELECT achievement_key, unlocked_at FROM player_achievements WHERE player_id = ?',
+    [req.params.id]
+  );
+  const unlockedByKey = new Map(unlockedRows.map((r) => [r.achievement_key, r.unlocked_at]));
+
+  res.render('admin/players/detail', {
+    admin: req.admin,
+    player: { ...player, ...levelForXp(player.lifetime_xp) },
+    achievements: ACHIEVEMENTS.map((a) => ({
+      ...a,
+      unlocked: unlockedByKey.has(a.key),
+      unlockedAt: unlockedByKey.get(a.key) || null,
+    })),
   });
 }
 
@@ -699,6 +737,8 @@ module.exports = {
   login,
   logout,
   dashboard,
+  listPlayers,
+  playerDetail,
   listCategories,
   newCategoryForm,
   createCategory,

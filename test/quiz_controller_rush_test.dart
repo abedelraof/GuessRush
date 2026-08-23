@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:quizo/models/category.dart';
+import 'package:quizo/models/player_profile.dart';
 import 'package:quizo/models/question.dart';
 import 'package:quizo/services/api_client.dart';
 import 'package:quizo/services/quiz_api.dart';
@@ -48,6 +49,17 @@ class FakeQuizApi extends QuizApi {
   int? personalBestStreakOverride;
   bool isNewBestStreakOverride = false;
   bool isPerfectRushOverride = false;
+
+  // Phase 3 progression overrides — default to "nothing special happened",
+  // matching a server response for a Rush that's not the player's first.
+  int xpAwardedOverride = 42;
+  int levelOverride = 1;
+  bool leveledUpOverride = false;
+  int xpIntoLevelOverride = 42;
+  int xpForNextLevelOverride = 100;
+  List<Achievement> newlyUnlockedOverride = const [];
+  int getProfileCallCount = 0;
+  bool throwOnProfile = false;
 
   @override
   Future<SessionStart> createSession(int categoryId) async {
@@ -116,6 +128,34 @@ class FakeQuizApi extends QuizApi {
       personalBestStreak: personalBestStreakOverride,
       isNewBestStreak: isNewBestStreakOverride,
       isPerfectRush: isPerfectRushOverride,
+      xpAwarded: xpAwardedOverride,
+      lifetimeXp: xpIntoLevelOverride, // fine for tests: level 1 means lifetimeXp == xpIntoLevel
+      level: levelOverride,
+      leveledUp: leveledUpOverride,
+      xpIntoLevel: xpIntoLevelOverride,
+      xpForNextLevel: xpForNextLevelOverride,
+      newlyUnlockedAchievements: newlyUnlockedOverride,
+    );
+  }
+
+  @override
+  Future<PlayerProfile> getProfile() async {
+    getProfileCallCount++;
+    if (throwOnProfile) throw ApiException('profile unavailable');
+    return PlayerProfile(
+      displayName: 'Test Player',
+      level: levelOverride,
+      lifetimeXp: xpIntoLevelOverride,
+      xpIntoLevel: xpIntoLevelOverride,
+      xpForNextLevel: xpForNextLevelOverride,
+      stats: const ProfileStats(
+        rushesCompleted: 1, questionsAnswered: 10, questionsCorrect: 5, accuracyPct: 50, avgResponseTimeMs: 1200,
+      ),
+      records: ProfileRecords(
+        bestRushScore: _score, bestStreak: _bestStreak, bestAccuracyPct: 50,
+        fastestAvgResponseTimeMs: 1200, perfectRushCount: isPerfectRushOverride ? 1 : 0,
+      ),
+      achievements: const [],
     );
   }
 }
@@ -367,5 +407,73 @@ void main() {
     expect(controller.isNewPersonalBest, false);
     expect(controller.isNewBestStreak, false);
     expect(controller.isPerfectRush, false);
+  });
+
+  testWidgets('finishing a Rush surfaces the server-awarded XP, level-up, and unlocked achievements', (tester) async {
+    final fakeApi = FakeQuizApi()
+      ..xpAwardedOverride = 268
+      ..levelOverride = 2
+      ..leveledUpOverride = true
+      ..xpIntoLevelOverride = 18
+      ..xpForNextLevelOverride = 150
+      ..newlyUnlockedOverride = const [
+        Achievement(key: 'first_rush', name: 'First Rush', description: 'Complete your first Rush.'),
+      ];
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+    for (var i = 0; i < 10; i++) {
+      await controller.selectAnswer(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700));
+    }
+
+    expect(controller.xpAwarded, 268);
+    expect(controller.leveledUp, true);
+    expect(controller.newlyUnlockedAchievements.map((a) => a.key), ['first_rush']);
+  });
+
+  testWidgets('finishing a Rush refreshes the lifetime profile', (tester) async {
+    final fakeApi = FakeQuizApi();
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+    expect(fakeApi.getProfileCallCount, 0); // selectCategory itself doesn't touch the profile
+
+    for (var i = 0; i < 10; i++) {
+      await controller.selectAnswer(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700));
+    }
+    await tester.pump(); // let the fire-and-forget loadProfile() call resolve
+
+    expect(fakeApi.getProfileCallCount, 1);
+    expect(controller.profile, isNotNull);
+  });
+
+  testWidgets('goToProfile switches screens and (re)loads the profile', (tester) async {
+    final fakeApi = FakeQuizApi();
+    final controller = QuizController(quizApi: fakeApi);
+
+    controller.goToProfile();
+    await tester.pump();
+
+    expect(controller.screen, AppScreen.profile);
+    expect(fakeApi.getProfileCallCount, 1);
+    expect(controller.profile, isNotNull);
+    expect(controller.profile!.level, 1);
+  });
+
+  testWidgets('a failed profile load is non-fatal — it just leaves profile unset', (tester) async {
+    final fakeApi = FakeQuizApi()..throwOnProfile = true;
+    final controller = QuizController(quizApi: fakeApi);
+
+    controller.goToProfile();
+    await tester.pump();
+
+    expect(controller.screen, AppScreen.profile);
+    expect(controller.profile, isNull);
   });
 }

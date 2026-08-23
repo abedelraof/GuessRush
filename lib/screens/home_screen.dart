@@ -14,6 +14,10 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = controller.player?.displayName ?? 'Player';
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
+    final level = controller.profile?.level;
+    // Lifetime best streak once the profile has loaded; falls back to the
+    // last-known Rush's streak so the badge doesn't flash to 0 in the meantime.
+    final bestStreak = controller.profile?.records.bestStreak ?? controller.bestStreak;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
@@ -22,28 +26,42 @@ class HomeScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppColors.cardWhite,
-                        borderRadius: BorderRadius.circular(14),
+                GestureDetector(
+                  onTap: controller.goToProfile,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: AppColors.cardWhite,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          initial,
+                          style: AppFonts.baloo(size: 18, color: AppColors.linkPurple),
+                        ),
                       ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        initial,
-                        style: AppFonts.baloo(size: 18, color: AppColors.linkPurple),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Text(name, style: AppFonts.inter(size: 14, weight: FontWeight.w700)),
-                  ],
+                      const SizedBox(width: 10),
+                      Text(name, style: AppFonts.inter(size: 14, weight: FontWeight.w700)),
+                      if (level != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text('Lv $level', style: AppFonts.inter(size: 11, weight: FontWeight.w800)),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
                 Row(
                   children: [
-                    StreakBadge(streak: controller.bestStreak),
+                    StreakBadge(streak: bestStreak),
                     const SizedBox(width: 10),
                     GestureDetector(
                       onTap: controller.logout,

@@ -5,13 +5,14 @@ import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../models/category.dart';
 import '../models/player.dart';
+import '../models/player_profile.dart';
 import '../models/question.dart';
 import '../services/api_client.dart';
 import '../services/audio_player_service.dart';
 import '../services/auth_service.dart';
 import '../services/quiz_api.dart';
 
-enum AppScreen { boot, login, signup, home, categories, game, results }
+enum AppScreen { boot, login, signup, home, categories, game, results, profile }
 
 enum AnswerFeedback { none, correct, wrong, timeout }
 
@@ -96,6 +97,15 @@ class QuizController extends ChangeNotifier {
   bool isNewBestStreak = false;
   bool isPerfectRush = false;
 
+  // Persistent progression (Phase 3) — server-authoritative, applied exactly once per
+  // completed Rush. `profile` is the full lifetime profile (level/XP/stats/achievements),
+  // refreshed on boot and after every finished Rush; the rest are this Rush's own
+  // XP/level-up/achievement-unlock outcome, for the results screen's subtle feedback.
+  PlayerProfile? profile;
+  int xpAwarded = 0;
+  bool leveledUp = false;
+  List<Achievement> newlyUnlockedAchievements = [];
+
   // Rush Momentum (0-100) and the breakdown behind the most recent answer,
   // used by the feedback overlay/HUD — never affects scoring.
   double momentum = 0;
@@ -134,6 +144,7 @@ class QuizController extends ChangeNotifier {
     } on ApiException catch (e) {
       errorMessage = e.message;
     }
+    loadProfile(); // fire-and-forget: home screen renders fine before this resolves
     screen = AppScreen.home;
     notifyListeners();
   }
@@ -418,10 +429,14 @@ class QuizController extends ChangeNotifier {
       personalBestStreak = summary.personalBestStreak;
       isNewBestStreak = summary.isNewBestStreak;
       isPerfectRush = summary.isPerfectRush;
-      if (isNewPersonalBest || isNewBestStreak || isPerfectRush) {
+      xpAwarded = summary.xpAwarded;
+      leveledUp = summary.leveledUp;
+      newlyUnlockedAchievements = summary.newlyUnlockedAchievements;
+      if (isNewPersonalBest || isNewBestStreak || isPerfectRush || leveledUp || newlyUnlockedAchievements.isNotEmpty) {
         HapticFeedback.heavyImpact();
       }
       notifyListeners();
+      loadProfile(); // lifetime XP/level/records/achievements just changed — refresh for later screens
     } on ApiException {
       // Non-fatal: the results screen already shows the locally-tracked
       // totals, which mirror the server's authoritative per-answer
@@ -433,6 +448,22 @@ class QuizController extends ChangeNotifier {
   void playNow() {
     screen = AppScreen.categories;
     notifyListeners();
+  }
+
+  Future<void> loadProfile() async {
+    try {
+      profile = await quizApi.getProfile();
+      notifyListeners();
+    } on ApiException {
+      // Non-fatal: whatever screen needs it (home badge, Profile screen) just
+      // keeps showing its last-known value, or its own "couldn't load" state.
+    }
+  }
+
+  void goToProfile() {
+    screen = AppScreen.profile;
+    notifyListeners();
+    loadProfile(); // refresh in case it's been a while since boot/last Rush
   }
 
   void goHome() {
@@ -467,6 +498,9 @@ class QuizController extends ChangeNotifier {
       personalBestStreak = null;
       isNewBestStreak = false;
       isPerfectRush = false;
+      xpAwarded = 0;
+      leveledUp = false;
+      newlyUnlockedAchievements = [];
       momentum = 0;
       lastSpeedLabel = '';
       lastStreakBeforeAnswer = 0;

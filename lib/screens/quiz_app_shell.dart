@@ -6,6 +6,7 @@ import 'categories_screen.dart';
 import 'game_screen.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
+import 'profile_screen.dart';
 import 'results_screen.dart';
 import 'signup_screen.dart';
 
@@ -54,6 +55,8 @@ class _QuizAppShellState extends State<QuizAppShell> {
         return GameScreen(key: ValueKey('game-${controller.qIndex}'), controller: controller);
       case AppScreen.results:
         return ResultsScreen(key: const ValueKey('results'), controller: controller);
+      case AppScreen.profile:
+        return ProfileScreen(key: const ValueKey('profile'), controller: controller);
     }
   }
 

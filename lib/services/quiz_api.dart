@@ -1,4 +1,5 @@
 import '../models/category.dart';
+import '../models/player_profile.dart';
 import '../models/question.dart';
 import 'api_client.dart';
 
@@ -79,6 +80,15 @@ class SessionSummary {
   final bool isNewBestStreak;
   final bool isPerfectRush;
 
+  // Lifetime progression, applied server-side exactly once per Rush (Phase 3).
+  final int xpAwarded;
+  final int lifetimeXp;
+  final int level;
+  final bool leveledUp;
+  final int xpIntoLevel;
+  final int xpForNextLevel;
+  final List<Achievement> newlyUnlockedAchievements;
+
   SessionSummary({
     required this.score,
     required this.questionsTotal,
@@ -94,6 +104,13 @@ class SessionSummary {
     required this.personalBestStreak,
     required this.isNewBestStreak,
     required this.isPerfectRush,
+    required this.xpAwarded,
+    required this.lifetimeXp,
+    required this.level,
+    required this.leveledUp,
+    required this.xpIntoLevel,
+    required this.xpForNextLevel,
+    required this.newlyUnlockedAchievements,
   });
 
   factory SessionSummary.fromJson(Map<String, dynamic> json) => SessionSummary(
@@ -111,6 +128,15 @@ class SessionSummary {
         personalBestStreak: json['personal_best_streak'] as int?,
         isNewBestStreak: json['is_new_best_streak'] as bool? ?? false,
         isPerfectRush: json['is_perfect_rush'] as bool? ?? false,
+        xpAwarded: json['xp_awarded'] as int? ?? 0,
+        lifetimeXp: json['lifetime_xp'] as int? ?? 0,
+        level: json['level'] as int? ?? 1,
+        leveledUp: json['leveled_up'] as bool? ?? false,
+        xpIntoLevel: json['xp_into_level'] as int? ?? 0,
+        xpForNextLevel: json['xp_for_next_level'] as int? ?? 1,
+        newlyUnlockedAchievements: (json['newly_unlocked_achievements'] as List? ?? [])
+            .map((a) => Achievement.fromJson(a as Map<String, dynamic>))
+            .toList(),
       );
 }
 
@@ -157,5 +183,10 @@ class QuizApi {
   Future<SessionSummary> finishSession(int sessionId) async {
     final res = await _api.post('/api/sessions/$sessionId/finish');
     return SessionSummary.fromJson(res);
+  }
+
+  Future<PlayerProfile> getProfile() async {
+    final res = await _api.get('/api/profile');
+    return PlayerProfile.fromJson(res);
   }
 }

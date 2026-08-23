@@ -35,7 +35,34 @@ CREATE TABLE IF NOT EXISTS players (
   password_hash VARCHAR(255) NOT NULL,
   display_name VARCHAR(64) NOT NULL,
   role ENUM('player','admin') NOT NULL DEFAULT 'player',
+  -- Persistent progression (Phase 3) — server-authoritative, updated only by
+  -- applyRushProgression() inside the /finish transaction. level is a cached
+  -- projection of lifetime_xp (see progression.service.js's XP curve),
+  -- kept in sync on every award so simple reads don't need to recompute it.
+  level INT NOT NULL DEFAULT 1,
+  lifetime_xp INT NOT NULL DEFAULT 0,
+  rushes_completed INT NOT NULL DEFAULT 0,
+  questions_answered INT NOT NULL DEFAULT 0,
+  questions_correct INT NOT NULL DEFAULT 0,
+  total_response_time_ms BIGINT NOT NULL DEFAULT 0,
+  best_rush_score INT NOT NULL DEFAULT 0,
+  best_streak INT NOT NULL DEFAULT 0,
+  best_accuracy_pct INT NOT NULL DEFAULT 0,
+  fastest_avg_response_time_ms INT NULL DEFAULT NULL,
+  perfect_rush_count INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- One row per unlocked achievement per player. The unique constraint is what
+-- makes awarding idempotent — INSERT IGNORE against it is a no-op for an
+-- achievement the player already has, never a duplicate row or an error.
+CREATE TABLE IF NOT EXISTS player_achievements (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  player_id INT NOT NULL,
+  achievement_key VARCHAR(64) NOT NULL,
+  unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (player_id) REFERENCES players(id),
+  UNIQUE KEY uniq_player_achievement (player_id, achievement_key)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS game_sessions (
@@ -54,6 +81,10 @@ CREATE TABLE IF NOT EXISTS game_sessions (
   wrong_count INT NOT NULL DEFAULT 0,
   started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   ended_at TIMESTAMP NULL,
+  -- Set once, by applyRushProgression on the in_progress -> completed transition — lets a
+  -- repeat /finish call report what was already granted instead of re-awarding (idempotency).
+  xp_awarded INT NOT NULL DEFAULT 0,
+  progression_applied TINYINT(1) NOT NULL DEFAULT 0,
   FOREIGN KEY (player_id) REFERENCES players(id),
   FOREIGN KEY (category_id) REFERENCES categories(id),
   INDEX idx_leaderboard (score DESC)

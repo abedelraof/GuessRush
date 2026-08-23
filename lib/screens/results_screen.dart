@@ -13,10 +13,12 @@ class ResultsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final achievements = <String>[
+    final badges = <String>[
       if (controller.isNewPersonalBest) '🏆 NEW PERSONAL BEST',
       if (controller.isNewBestStreak) '🔥 NEW BEST STREAK',
       if (controller.isPerfectRush) '💯 PERFECT RUSH',
+      if (controller.leveledUp) '⭐ LEVEL UP! → Lv ${controller.profile?.level ?? ''}',
+      for (final a in controller.newlyUnlockedAchievements) '🏅 ${a.name}',
     ];
 
     return SafeArea(
@@ -31,13 +33,20 @@ class ResultsScreen extends StatelessWidget {
               duration: const Duration(milliseconds: 900),
               style: AppFonts.baloo(size: 56, color: AppColors.finalScoreGold),
             ),
-            if (achievements.isNotEmpty) ...[
+            if (controller.xpAwarded > 0) ...[
+              const SizedBox(height: 4),
+              Text(
+                '+${controller.xpAwarded} XP',
+                style: AppFonts.inter(size: 13, weight: FontWeight.w700, color: AppColors.finalScoreGold),
+              ),
+            ],
+            if (badges.isNotEmpty) ...[
               const SizedBox(height: 8),
               Wrap(
                 alignment: WrapAlignment.center,
                 spacing: 8,
                 runSpacing: 8,
-                children: achievements.map((a) => _AchievementBadge(text: a)).toList(),
+                children: badges.map((a) => _AchievementBadge(text: a)).toList(),
               ),
             ] else if (controller.personalBestScore != null) ...[
               const SizedBox(height: 6),

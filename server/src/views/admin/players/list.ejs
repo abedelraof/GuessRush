@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('../../partials/head', { title: 'Players' }) %></head>
+<body>
+  <div class="flex min-h-screen">
+    <%- include('../../partials/sidebar', { active: 'players' }) %>
+    <main class="flex-1 p-8 max-w-5xl">
+      <div class="mb-6">
+        <h1 class="text-2xl font-extrabold text-slate-900">Players</h1>
+        <p class="text-slate-500 text-sm mt-1">Lifetime progression, ranked by XP. Achievements are configuration-driven (see progression.config.js) — this is a read-only view.</p>
+      </div>
+
+      <div class="card overflow-hidden">
+        <table class="table-base">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Level</th>
+              <th>Lifetime XP</th>
+              <th>Rushes</th>
+              <th>Best Score</th>
+              <th>Best Streak</th>
+              <th>Achievements</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% players.forEach(function(p) { %>
+              <tr>
+                <td>
+                  <a href="/admin/players/<%= p.id %>" class="font-semibold text-slate-900 hover:text-brand-600"><%= p.display_name %></a>
+                  <div class="text-xs text-slate-400"><%= p.email %></div>
+                </td>
+                <td><span class="badge-brand">Lv <%= p.level %></span></td>
+                <td class="text-slate-600"><%= p.lifetime_xp %></td>
+                <td class="text-slate-600"><%= p.rushes_completed %></td>
+                <td class="text-slate-600"><%= p.best_rush_score %></td>
+                <td class="text-slate-600">🔥 <%= p.best_streak %></td>
+                <td class="text-slate-600"><%= p.achievements_unlocked %> / <%= totalAchievements %></td>
+              </tr>
+            <% }); %>
+            <% if (players.length === 0) { %>
+              <tr>
+                <td colspan="7" class="text-center text-slate-400 py-10">No players yet.</td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

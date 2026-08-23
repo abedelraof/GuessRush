@@ -11,6 +11,9 @@ router.get('/logout', controller.logout);
 
 router.get('/', requireAdmin, asyncHandler(controller.dashboard));
 
+router.get('/players', requireAdmin, asyncHandler(controller.listPlayers));
+router.get('/players/:id', requireAdmin, asyncHandler(controller.playerDetail));
+
 router.get('/categories', requireAdmin, asyncHandler(controller.listCategories));
 router.get('/categories/new', requireAdmin, controller.newCategoryForm);
 router.post('/categories', requireAdmin, asyncHandler(controller.createCategory));

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('../../partials/head', { title: player.display_name }) %></head>
+<body>
+  <div class="flex min-h-screen">
+    <%- include('../../partials/sidebar', { active: 'players' }) %>
+    <main class="flex-1 p-8 max-w-4xl">
+      <a href="/admin/players" class="text-sm text-slate-500 hover:text-slate-700">← Back to players</a>
+      <div class="flex items-center justify-between mt-2 mb-6">
+        <div>
+          <h1 class="text-2xl font-extrabold text-slate-900"><%= player.display_name %></h1>
+          <p class="text-slate-500 text-sm"><%= player.email %></p>
+        </div>
+        <span class="badge-brand text-base px-4 py-2">Level <%= player.level %></span>
+      </div>
+
+      <div class="card p-6 mb-6">
+        <h2 class="font-bold text-slate-900 mb-4">Progression</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <div class="text-2xl font-extrabold text-slate-900"><%= player.lifetime_xp %></div>
+            <div class="text-xs text-slate-500">Lifetime XP</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-slate-900"><%= player.xpIntoLevel %> / <%= player.xpForNextLevel %></div>
+            <div class="text-xs text-slate-500">XP into current level</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-slate-900"><%= player.rushes_completed %></div>
+            <div class="text-xs text-slate-500">Rushes completed</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-slate-900"><%= player.questions_answered %></div>
+            <div class="text-xs text-slate-500">Questions answered</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-6 mb-6">
+        <h2 class="font-bold text-slate-900 mb-4">Personal records</h2>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div>
+            <div class="text-2xl font-extrabold text-slate-900"><%= player.best_rush_score %></div>
+            <div class="text-xs text-slate-500">Best Rush score</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-slate-900">🔥 <%= player.best_streak %></div>
+            <div class="text-xs text-slate-500">Best streak</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-slate-900"><%= player.best_accuracy_pct %>%</div>
+            <div class="text-xs text-slate-500">Best accuracy</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-slate-900">
+              <%= player.fastest_avg_response_time_ms !== null ? (player.fastest_avg_response_time_ms / 1000).toFixed(1) + 's' : '—' %>
+            </div>
+            <div class="text-xs text-slate-500">Fastest avg Rush</div>
+          </div>
+          <div>
+            <div class="text-2xl font-extrabold text-slate-900"><%= player.perfect_rush_count %></div>
+            <div class="text-xs text-slate-500">Perfect Rushes</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card p-6">
+        <h2 class="font-bold text-slate-900 mb-4">Achievements (<%= achievements.filter(function(a) { return a.unlocked; }).length %> / <%= achievements.length %>)</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <% achievements.forEach(function(a) { %>
+            <div class="flex items-center gap-3 rounded-xl border p-3 <%= a.unlocked ? 'border-brand-300 bg-brand-50' : 'border-slate-200 opacity-50' %>">
+              <span class="text-xl"><%= a.unlocked ? '🏆' : '🔒' %></span>
+              <div>
+                <div class="font-semibold text-sm text-slate-900"><%= a.name %></div>
+                <div class="text-xs text-slate-500"><%= a.description %></div>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

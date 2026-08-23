@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth.routes');
 const categoriesRoutes = require('./routes/categories.routes');
 const sessionsRoutes = require('./routes/sessions.routes');
 const leaderboardRoutes = require('./routes/leaderboard.routes');
+const profileRoutes = require('./routes/profile.routes');
 const adminRoutes = require('./routes/admin.routes');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -27,6 +28,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/sessions', sessionsRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
+app.use('/api/profile', profileRoutes);
 
 app.use('/admin', adminRoutes);
 
