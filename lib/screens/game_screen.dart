@@ -6,6 +6,7 @@ import '../theme/colors.dart';
 import '../theme/text_styles.dart';
 import '../widgets/animated_counter.dart';
 import '../widgets/audio_question.dart';
+import '../widgets/double_down_overlay.dart';
 import '../widgets/feedback_overlay.dart';
 import '../widgets/image_question.dart';
 import '../widgets/momentum_meter.dart';
@@ -110,19 +111,36 @@ class GameScreen extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              gradient: AppColors.questionLabel,
-                              borderRadius: BorderRadius.circular(999),
-                              boxShadow: const [
-                                BoxShadow(color: Color(0x26000000), blurRadius: 10, offset: Offset(0, 4)),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                decoration: BoxDecoration(
+                                  gradient: AppColors.questionLabel,
+                                  borderRadius: BorderRadius.circular(999),
+                                  boxShadow: const [
+                                    BoxShadow(color: Color(0x26000000), blurRadius: 10, offset: Offset(0, 4)),
+                                  ],
+                                ),
+                                child: Text(q.label, style: AppFonts.inter(size: 12, weight: FontWeight.w800)),
+                              ),
+                              if (controller.currentDoubleDownChoice == 'risky') ...[
+                                const SizedBox(width: 8),
+                                const _RiskyBadge(),
                               ],
-                            ),
-                            child: Text(q.label, style: AppFonts.inter(size: 12, weight: FontWeight.w800)),
+                            ],
                           ),
-                          if (q.hasTimer)
-                            TimerRing(timeLeft: controller.timeLeft, totalSeconds: q.timerSeconds),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _RemoveOneButton(controller: controller),
+                              if (q.hasTimer) ...[
+                                const SizedBox(width: 8),
+                                TimerRing(timeLeft: controller.timeLeft, totalSeconds: q.timerSeconds),
+                              ],
+                            ],
+                          ),
                         ],
                       ),
                       if (controller.audioError != null) ...[
@@ -183,6 +201,7 @@ class GameScreen extends StatelessWidget {
                               isCorrectOption: i == controller.gradedCorrectIndex,
                               isSelected: controller.selected == i,
                               shake: controller.shakeIndex == i,
+                              isRemoved: controller.removedOptionIndex == i,
                               onTap: () => controller.selectAnswer(i),
                             ),
                         ],
@@ -207,6 +226,19 @@ class GameScreen extends StatelessWidget {
               difficulty: controller.lastDifficulty,
               correctAnswerText: q.options[controller.gradedCorrectIndex!],
               momentumTier: controller.momentumTier,
+              cluesRevealed: controller.lastCluesRevealed,
+              clueMultiplier: controller.lastClueMultiplier,
+              removeOneUsed: controller.lastRemoveOneUsed,
+              doubleDownChoice: controller.lastDoubleDownChoice,
+              doubleDownMultiplier: controller.lastDoubleDownMultiplier,
+            ),
+          ),
+        if (controller.awaitingDoubleDownChoice)
+          Positioned.fill(
+            child: DoubleDownOverlay(
+              streak: controller.streak,
+              isChoosing: controller.isChoosingDoubleDown,
+              onChoose: controller.chooseDoubleDown,
             ),
           ),
       ],
@@ -256,6 +288,87 @@ class _StreakChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Reminds the player they're on a Double Down question while they're still
+/// answering it — the outcome itself is communicated afterward by FeedbackOverlay.
+class _RiskyBadge extends StatelessWidget {
+  const _RiskyBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.streakGradA.withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text('🔥', style: TextStyle(fontSize: 12)),
+          const SizedBox(width: 4),
+          Text('RISKY', style: AppFonts.inter(size: 11, weight: FontWeight.w800, color: Colors.white)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Limited to REMOVE_ONE_USES_PER_RUSH charges for the whole Rush (currently
+/// 1) — the count itself communicates "save it or spend it now" without
+/// needing extra copy.
+class _RemoveOneButton extends StatelessWidget {
+  final QuizController controller;
+
+  const _RemoveOneButton({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final usable = !controller.answered &&
+        !controller.isUsingRemoveOne &&
+        controller.removeOneUsesRemaining > 0 &&
+        controller.removedOptionIndex == null;
+    final visible = controller.removeOneUsesRemaining > 0 || controller.removedOptionIndex != null;
+    if (!visible) return const SizedBox.shrink();
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: usable ? controller.useRemoveOne : null,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: usable ? 0.22 : 0.12),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (controller.isUsingRemoveOne)
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              else
+                Text('🚫', style: TextStyle(fontSize: 13, color: usable ? null : Colors.white.withValues(alpha: 0.5))),
+              const SizedBox(width: 5),
+              Text(
+                '${controller.removeOneUsesRemaining}',
+                style: AppFonts.inter(
+                  size: 12,
+                  weight: FontWeight.w800,
+                  color: usable ? Colors.white : Colors.white.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -327,6 +440,8 @@ class _QuestionBody extends StatelessWidget {
           clues: clues,
           clueCount: controller.clueCount,
           hasMore: controller.clueCount < clues.length,
+          isRevealing: controller.isRevealingClue,
+          nextClueMultiplier: clueMultiplierHintFor(controller.clueCount + 1),
           onRevealClue: controller.revealClue,
         );
     }

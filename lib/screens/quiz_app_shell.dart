@@ -5,6 +5,7 @@ import '../theme/colors.dart';
 import 'categories_screen.dart';
 import 'game_screen.dart';
 import 'home_screen.dart';
+import 'leaderboard_screen.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'results_screen.dart';
@@ -57,6 +58,8 @@ class _QuizAppShellState extends State<QuizAppShell> {
         return ResultsScreen(key: const ValueKey('results'), controller: controller);
       case AppScreen.profile:
         return ProfileScreen(key: const ValueKey('profile'), controller: controller);
+      case AppScreen.leaderboard:
+        return LeaderboardScreen(key: const ValueKey('leaderboard'), controller: controller);
     }
   }
 

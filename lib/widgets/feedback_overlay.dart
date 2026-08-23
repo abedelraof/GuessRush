@@ -17,6 +17,13 @@ class FeedbackOverlay extends StatelessWidget {
   final String correctAnswerText;
   final MomentumTier momentumTier;
 
+  // Strategic mechanics (Phase 5) breakdown for this specific answer.
+  final int cluesRevealed;
+  final double clueMultiplier;
+  final bool removeOneUsed;
+  final String doubleDownChoice; // 'none' | 'safe' | 'risky'
+  final double doubleDownMultiplier;
+
   const FeedbackOverlay({
     super.key,
     required this.feedback,
@@ -29,6 +36,11 @@ class FeedbackOverlay extends StatelessWidget {
     required this.difficulty,
     required this.correctAnswerText,
     required this.momentumTier,
+    required this.cluesRevealed,
+    required this.clueMultiplier,
+    required this.removeOneUsed,
+    required this.doubleDownChoice,
+    required this.doubleDownMultiplier,
   });
 
   bool get _correct => feedback == AnswerFeedback.correct;
@@ -84,6 +96,10 @@ class FeedbackOverlay extends StatelessWidget {
 
   List<Widget> _correctBody() {
     return [
+      if (doubleDownChoice == 'risky') ...[
+        _chip('🔥 DOUBLE DOWN HIT!', emphasize: true),
+        const SizedBox(height: 6),
+      ],
       AnimatedCounter(
         value: answerScore,
         prefix: '+',
@@ -96,8 +112,11 @@ class FeedbackOverlay extends StatelessWidget {
         runSpacing: 6,
         children: [
           _chip('🔥 $streak STREAK', emphasize: isMilestone),
+          if (doubleDownMultiplier > 1.0) _chip('×${doubleDownMultiplier.toStringAsFixed(0)} DOUBLE DOWN'),
           if (streakMultiplier > 1.0) _chip('×${streakMultiplier.toStringAsFixed(1)}'),
           if (speedLabel.isNotEmpty) _chip(speedLabel),
+          if (clueMultiplier < 1.0) _chip('${(clueMultiplier * 100).round()}% · $cluesRevealed CLUES'),
+          if (removeOneUsed) _chip('🚫 REMOVE ONE'),
           // Easy is the baseline difficulty — surfacing it here would just be noise.
           if (difficulty != 'easy') _chip(difficulty.toUpperCase()),
         ],
@@ -107,6 +126,10 @@ class FeedbackOverlay extends StatelessWidget {
 
   List<Widget> _missBody() {
     return [
+      if (doubleDownChoice == 'risky') ...[
+        _chip('💔 DOUBLE DOWN FAILED', muted: true),
+        const SizedBox(height: 8),
+      ],
       RichText(
         textAlign: TextAlign.center,
         text: TextSpan(

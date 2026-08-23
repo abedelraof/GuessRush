@@ -50,6 +50,12 @@ CREATE TABLE IF NOT EXISTS players (
   best_accuracy_pct INT NOT NULL DEFAULT 0,
   fastest_avg_response_time_ms INT NULL DEFAULT NULL,
   perfect_rush_count INT NOT NULL DEFAULT 0,
+  -- Daily play streak (Phase 6) — deliberately separate from best_streak above,
+  -- which is the in-game answer streak. Updated only by dailyStreak.service's
+  -- applyDailyStreak(), on completing the official Daily Rush for the day.
+  daily_streak_current INT NOT NULL DEFAULT 0,
+  daily_streak_longest INT NOT NULL DEFAULT 0,
+  daily_streak_last_date DATE NULL DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
@@ -85,6 +91,16 @@ CREATE TABLE IF NOT EXISTS game_sessions (
   -- repeat /finish call report what was already granted instead of re-awarding (idempotency).
   xp_awarded INT NOT NULL DEFAULT 0,
   progression_applied TINYINT(1) NOT NULL DEFAULT 0,
+  -- Strategic mechanics (Phase 5) — all server-authoritative, mirroring the
+  -- question_started_at/question_start_pinged pattern above: state for the
+  -- CURRENT question, read and reset by submitAnswer as current_index advances.
+  current_clue_count INT NOT NULL DEFAULT 1,
+  remove_one_uses_remaining INT NOT NULL DEFAULT 1,
+  remove_one_used_at_index INT NULL DEFAULT NULL,
+  removed_option_index INT NULL DEFAULT NULL,
+  double_down_offered_at_index INT NULL DEFAULT NULL,
+  double_down_choice_index INT NULL DEFAULT NULL,
+  double_down_choice ENUM('safe','risky') NULL DEFAULT NULL,
   FOREIGN KEY (player_id) REFERENCES players(id),
   FOREIGN KEY (category_id) REFERENCES categories(id),
   INDEX idx_leaderboard (score DESC)
@@ -96,6 +112,22 @@ CREATE TABLE IF NOT EXISTS app_settings (
   setting_key VARCHAR(64) PRIMARY KEY,
   value TEXT NOT NULL,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- One row per player per calendar day (server/UTC date, never client-supplied) —
+-- this is what "one official Daily Rush attempt per day" actually enforces: the
+-- UNIQUE constraint makes a second /daily-rush/start for the same day either
+-- resume the existing session (if unfinished) or just report today's result,
+-- never create a second attempt, even under concurrent requests.
+CREATE TABLE IF NOT EXISTS daily_rush_attempts (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  player_id INT NOT NULL,
+  daily_date DATE NOT NULL,
+  session_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (player_id) REFERENCES players(id),
+  FOREIGN KEY (session_id) REFERENCES game_sessions(id),
+  UNIQUE KEY uniq_player_daily (player_id, daily_date)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS answers (
@@ -115,8 +147,31 @@ CREATE TABLE IF NOT EXISTS answers (
   streak_multiplier DECIMAL(4,2) NOT NULL DEFAULT 1.00,
   streak_after INT NOT NULL DEFAULT 0,
   score INT NOT NULL DEFAULT 0,
+  -- Strategic mechanics (Phase 5) breakdown, recorded per answer for the same
+  -- "explain how a score was produced" reason as base_score/speed_multiplier above.
+  clues_revealed INT NOT NULL DEFAULT 1,
+  clue_multiplier DECIMAL(4,2) NOT NULL DEFAULT 1.00,
+  remove_one_used BOOLEAN NOT NULL DEFAULT FALSE,
+  double_down_choice ENUM('none','safe','risky') NOT NULL DEFAULT 'none',
+  double_down_multiplier DECIMAL(4,2) NOT NULL DEFAULT 1.00,
   answered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (session_id) REFERENCES game_sessions(id),
   FOREIGN KEY (question_id) REFERENCES questions(id),
   UNIQUE KEY uniq_session_question (session_id, question_id)
+) ENGINE=InnoDB;
+
+-- One row per player per mission per period (period_key is a date string for a
+-- 'daily' mission, e.g. "2026-08-24" — see missions.service.js's periodKeyFor).
+-- The UNIQUE constraint is what makes accumulating progress across multiple
+-- Rushes in the same period safe under concurrent /finish calls: INSERT IGNORE
+-- to ensure the row exists, then SELECT ... FOR UPDATE to serialize the update.
+CREATE TABLE IF NOT EXISTS player_mission_progress (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  player_id INT NOT NULL,
+  mission_key VARCHAR(64) NOT NULL,
+  period_key VARCHAR(16) NOT NULL,
+  progress INT NOT NULL DEFAULT 0,
+  completed_at TIMESTAMP NULL DEFAULT NULL,
+  FOREIGN KEY (player_id) REFERENCES players(id),
+  UNIQUE KEY uniq_player_mission_period (player_id, mission_key, period_key)
 ) ENGINE=InnoDB;

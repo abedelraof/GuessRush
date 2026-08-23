@@ -7,6 +7,8 @@ class ProgressiveQuestion extends StatelessWidget {
   final List<String> clues;
   final int clueCount;
   final bool hasMore;
+  final bool isRevealing;
+  final double nextClueMultiplier;
   final VoidCallback onRevealClue;
 
   const ProgressiveQuestion({
@@ -14,6 +16,8 @@ class ProgressiveQuestion extends StatelessWidget {
     required this.clues,
     required this.clueCount,
     required this.hasMore,
+    required this.isRevealing,
+    required this.nextClueMultiplier,
     required this.onRevealClue,
   });
 
@@ -69,27 +73,40 @@ class ProgressiveQuestion extends StatelessWidget {
           if (hasMore) ...[
             const SizedBox(height: 4),
             Center(
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(999),
-                  onTap: onRevealClue,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                    decoration: BoxDecoration(
-                      color: AppColors.revealBg,
+              child: Column(
+                children: [
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
                       borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      'REVEAL NEXT CLUE',
-                      style: AppFonts.inter(
-                        size: 12,
-                        weight: FontWeight.w800,
-                        color: AppColors.revealText,
+                      onTap: isRevealing ? null : onRevealClue,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: AppColors.revealBg,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: isRevealing
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.revealText),
+                              )
+                            : Text(
+                                'REVEAL NEXT CLUE',
+                                style: AppFonts.inter(size: 12, weight: FontWeight.w800, color: AppColors.revealText),
+                              ),
                       ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 6),
+                  // The tension the mechanic is for: answering now keeps full score,
+                  // one more clue trades some of it away for a clearer answer.
+                  Text(
+                    'Next clue lowers your score to ${(nextClueMultiplier * 100).round()}%',
+                    style: AppFonts.inter(size: 10, weight: FontWeight.w600, color: AppColors.mutedText),
+                  ),
+                ],
               ),
             ),
           ],

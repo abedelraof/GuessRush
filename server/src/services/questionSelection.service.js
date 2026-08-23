@@ -1,9 +1,15 @@
 const { DIFFICULTY_LEVELS, DIFFICULTY_PROGRESSION, RUSH_LENGTH } = require('../config/rush.config');
 
-function shuffle(arr) {
+/**
+ * Fisher-Yates shuffle driven by an injectable `rng` (defaults to Math.random).
+ * A normal Rush wants genuine randomness; Daily Rush (dailyRush.service.js)
+ * passes a seeded deterministic RNG instead, so every player sees the exact
+ * same shuffle result for today without this function needing to know why.
+ */
+function shuffle(arr, rng = Math.random) {
   const a = arr.slice();
   for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng() * (i + 1));
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
@@ -29,9 +35,9 @@ function takeNearest(pools, desired) {
  * repeats a question within the Rush. If the category runs out of eligible
  * questions, the Rush simply ends up shorter than RUSH_LENGTH.
  */
-function buildRush(rows, { progression = DIFFICULTY_PROGRESSION, length = RUSH_LENGTH } = {}) {
+function buildRush(rows, { progression = DIFFICULTY_PROGRESSION, length = RUSH_LENGTH, rng = Math.random } = {}) {
   const pools = {};
-  for (const level of DIFFICULTY_LEVELS) pools[level] = shuffle(rows.filter((q) => q.difficulty === level));
+  for (const level of DIFFICULTY_LEVELS) pools[level] = shuffle(rows.filter((q) => q.difficulty === level), rng);
 
   const selected = [];
   for (let i = 0; i < length; i++) {

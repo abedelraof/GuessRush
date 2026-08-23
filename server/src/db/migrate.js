@@ -43,6 +43,27 @@ const COLUMN_MIGRATIONS = [
   'ALTER TABLE players ADD COLUMN perfect_rush_count INT NOT NULL DEFAULT 0 AFTER fastest_avg_response_time_ms',
   'ALTER TABLE game_sessions ADD COLUMN xp_awarded INT NOT NULL DEFAULT 0 AFTER ended_at',
   'ALTER TABLE game_sessions ADD COLUMN progression_applied TINYINT(1) NOT NULL DEFAULT 0 AFTER xp_awarded',
+  // Strategic mechanics (Phase 5): clue-reveal tracking, a one-per-Rush Remove One power-up,
+  // and a one-per-Rush Double Down offer — all per-session state plus a per-answer breakdown,
+  // same pattern as the Phase 1 scoring columns.
+  'ALTER TABLE game_sessions ADD COLUMN current_clue_count INT NOT NULL DEFAULT 1 AFTER progression_applied',
+  'ALTER TABLE game_sessions ADD COLUMN remove_one_uses_remaining INT NOT NULL DEFAULT 1 AFTER current_clue_count',
+  'ALTER TABLE game_sessions ADD COLUMN remove_one_used_at_index INT NULL DEFAULT NULL AFTER remove_one_uses_remaining',
+  'ALTER TABLE game_sessions ADD COLUMN removed_option_index INT NULL DEFAULT NULL AFTER remove_one_used_at_index',
+  'ALTER TABLE game_sessions ADD COLUMN double_down_offered_at_index INT NULL DEFAULT NULL AFTER removed_option_index',
+  'ALTER TABLE game_sessions ADD COLUMN double_down_choice_index INT NULL DEFAULT NULL AFTER double_down_offered_at_index',
+  "ALTER TABLE game_sessions ADD COLUMN double_down_choice ENUM('safe','risky') NULL DEFAULT NULL AFTER double_down_choice_index",
+  'ALTER TABLE answers ADD COLUMN clues_revealed INT NOT NULL DEFAULT 1 AFTER score',
+  'ALTER TABLE answers ADD COLUMN clue_multiplier DECIMAL(4,2) NOT NULL DEFAULT 1.00 AFTER clues_revealed',
+  'ALTER TABLE answers ADD COLUMN remove_one_used BOOLEAN NOT NULL DEFAULT FALSE AFTER clue_multiplier',
+  "ALTER TABLE answers ADD COLUMN double_down_choice ENUM('none','safe','risky') NOT NULL DEFAULT 'none' AFTER remove_one_used",
+  'ALTER TABLE answers ADD COLUMN double_down_multiplier DECIMAL(4,2) NOT NULL DEFAULT 1.00 AFTER double_down_choice',
+  // Retention systems (Phase 6): the daily play streak lives on players, right
+  // alongside the other lifetime records — player_mission_progress is a brand
+  // new table, so it only needs the CREATE TABLE IF NOT EXISTS in schema.sql above.
+  'ALTER TABLE players ADD COLUMN daily_streak_current INT NOT NULL DEFAULT 0 AFTER perfect_rush_count',
+  'ALTER TABLE players ADD COLUMN daily_streak_longest INT NOT NULL DEFAULT 0 AFTER daily_streak_current',
+  'ALTER TABLE players ADD COLUMN daily_streak_last_date DATE NULL DEFAULT NULL AFTER daily_streak_longest',
 ];
 
 // Backfills players' lifetime stats/records from their existing completed game_sessions/answers

@@ -10,6 +10,8 @@ const audioStorage = require('../utils/audioStorage');
 const imageStorage = require('../utils/imageStorage');
 const { levelForXp } = require('../services/progression.service');
 const { ACHIEVEMENTS } = require('../config/progression.config');
+const missionsService = require('../services/missions.service');
+const eventsService = require('../services/events.service');
 
 const QUESTION_TYPES = ['image', 'audio', 'video', 'text', 'emoji', 'progressive'];
 const DIFFICULTIES = ['easy', 'medium', 'hard', 'extreme'];
@@ -71,9 +73,15 @@ async function dashboard(req, res) {
   const [[questions]] = await pool.query('SELECT COUNT(*) AS n FROM questions');
   const [[players]] = await pool.query('SELECT COUNT(*) AS n FROM players WHERE role = "player"');
   const [[sessions]] = await pool.query('SELECT COUNT(*) AS n FROM game_sessions');
+  const [[activeStreaks]] = await pool.query(
+    'SELECT COUNT(*) AS n FROM players WHERE role = "player" AND daily_streak_current > 0'
+  );
+  const activeEvents = eventsService.activeEventsAt(new Date());
   res.render('admin/dashboard', {
     admin: req.admin,
     counts: { categories: categories.n, questions: questions.n, players: players.n, sessions: sessions.n },
+    activeStreaks: activeStreaks.n,
+    activeEvents,
   });
 }
 
@@ -101,6 +109,7 @@ async function playerDetail(req, res) {
     [req.params.id]
   );
   const unlockedByKey = new Map(unlockedRows.map((r) => [r.achievement_key, r.unlocked_at]));
+  const missions = await missionsService.getMissionsStatus(player.id);
 
   res.render('admin/players/detail', {
     admin: req.admin,
@@ -110,6 +119,7 @@ async function playerDetail(req, res) {
       unlocked: unlockedByKey.has(a.key),
       unlockedAt: unlockedByKey.get(a.key) || null,
     })),
+    missions,
   });
 }
 

@@ -3,6 +3,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:quizo/models/category.dart';
+import 'package:quizo/models/daily_rush_status.dart';
+import 'package:quizo/models/home_summary.dart';
+import 'package:quizo/models/leaderboard.dart';
+import 'package:quizo/models/mission.dart';
 import 'package:quizo/models/player_profile.dart';
 import 'package:quizo/models/question.dart';
 import 'package:quizo/services/api_client.dart';
@@ -18,6 +22,18 @@ Question _untimedQuestion(int id) => Question(
       type: QuestionType.text,
       label: 'Label',
       prompt: 'Prompt $id',
+      options: const ['A', 'B', 'C', 'D'],
+      timerSeconds: 0,
+    );
+
+/// Same shape as `_untimedQuestion`, but with clues so the Phase 5 progressive
+/// clue-reveal flow (server-authoritative, gated by `type == progressive`) has
+/// something to exercise.
+Question _progressiveQuestion(int id, {int clueCountTotal = 3}) => Question(
+      id: id,
+      type: QuestionType.progressive,
+      label: 'Label',
+      clues: List.generate(clueCountTotal, (i) => 'Clue ${i + 1}'),
       options: const ['A', 'B', 'C', 'D'],
       timerSeconds: 0,
     );
@@ -61,9 +77,80 @@ class FakeQuizApi extends QuizApi {
   int getProfileCallCount = 0;
   bool throwOnProfile = false;
 
+  // Phase 4 (Competition & Daily Rush) overrides.
+  bool isDailyRushOverride = false;
+  int? dailyRankOverride;
+  int? dailyPreviousBestScoreOverride;
+  bool isNewDailyBestOverride = false;
+  DailyRushStatus? dailyRushStatusOverride;
+  int getDailyRushStatusCallCount = 0;
+  int startDailyRushCallCount = 0;
+  int dailyRushStartCurrentIndex = 0;
+  List<Question>? dailyRushQuestionsOverride;
+
+  // Phase 6 (Retention Systems) overrides.
+  List<CompletedMission> newlyCompletedMissionsOverride = const [];
+  double xpMultiplierAppliedOverride = 1.0;
+  int dailyStreakCurrentOverride = 0;
+  int dailyStreakLongestOverride = 0;
+  HomeSummary? homeSummaryOverride;
+  int getHomeCallCount = 0;
+
+  // Phase 5 (Strategic Gameplay Mechanics) overrides.
+  int cluesRevealedOverride = 1;
+  double clueMultiplierOverride = 1.0;
+  bool removeOneUsedOverride = false;
+  int removeOneUsesRemainingOverride = 1;
+  String doubleDownChoiceOverride = 'none';
+  double doubleDownMultiplierOverride = 1.0;
+  DoubleDownOffer? doubleDownOfferOverride;
+
+  int revealClueCallCount = 0;
+  ClueReveal? revealClueResultOverride;
+  int useRemoveOneCallCount = 0;
+  RemoveOneResult? useRemoveOneResultOverride;
+  int chooseDoubleDownCallCount = 0;
+  String? lastDoubleDownChoiceRequested;
+
   @override
   Future<SessionStart> createSession(int categoryId) async {
     return SessionStart(sessionId: 1, questions: rushQuestions);
+  }
+
+  @override
+  Future<DailyRushStatus> getDailyRushStatus() async {
+    getDailyRushStatusCallCount++;
+    return dailyRushStatusOverride ??
+        const DailyRushStatus(
+          date: '2026-08-23',
+          secondsUntilReset: 3600,
+          available: true,
+          completed: false,
+          sessionId: null,
+          todayScore: null,
+          todayRank: null,
+          bestScore: null,
+        );
+  }
+
+  @override
+  Future<SessionStart> startDailyRush() async {
+    startDailyRushCallCount++;
+    return SessionStart(
+      sessionId: 1,
+      questions: dailyRushQuestionsOverride ?? rushQuestions,
+      currentIndex: dailyRushStartCurrentIndex,
+    );
+  }
+
+  @override
+  Future<LeaderboardPage> getLeaderboard({
+    LeaderboardPeriod period = LeaderboardPeriod.global,
+    int? categoryId,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    return LeaderboardPage(period: period, date: null, total: 0, entries: const [], me: null);
   }
 
   @override
@@ -105,7 +192,32 @@ class FakeQuizApi extends QuizApi {
       serverElapsedMs: 500,
       questionsRemaining: rushQuestions.length - answered,
       rushComplete: answered >= rushQuestions.length,
+      cluesRevealed: cluesRevealedOverride,
+      clueMultiplier: clueMultiplierOverride,
+      removeOneUsed: removeOneUsedOverride,
+      removeOneUsesRemaining: removeOneUsesRemainingOverride,
+      doubleDownChoice: doubleDownChoiceOverride,
+      doubleDownMultiplier: doubleDownMultiplierOverride,
+      doubleDownOffer: doubleDownOfferOverride,
     );
+  }
+
+  @override
+  Future<ClueReveal> revealClue(int sessionId) async {
+    revealClueCallCount++;
+    return revealClueResultOverride ?? const ClueReveal(cluesRevealed: 2, clueText: 'Clue text', cluesTotal: 3);
+  }
+
+  @override
+  Future<RemoveOneResult> useRemoveOne(int sessionId) async {
+    useRemoveOneCallCount++;
+    return useRemoveOneResultOverride ?? const RemoveOneResult(removedOptionIndex: 1, usesRemaining: 0);
+  }
+
+  @override
+  Future<void> chooseDoubleDown(int sessionId, String choice) async {
+    chooseDoubleDownCallCount++;
+    lastDoubleDownChoiceRequested = choice;
   }
 
   @override
@@ -135,7 +247,28 @@ class FakeQuizApi extends QuizApi {
       xpIntoLevel: xpIntoLevelOverride,
       xpForNextLevel: xpForNextLevelOverride,
       newlyUnlockedAchievements: newlyUnlockedOverride,
+      isDailyRush: isDailyRushOverride,
+      dailyRank: dailyRankOverride,
+      dailyPreviousBestScore: dailyPreviousBestScoreOverride,
+      isNewDailyBest: isNewDailyBestOverride,
+      newlyCompletedMissions: newlyCompletedMissionsOverride,
+      xpMultiplierApplied: xpMultiplierAppliedOverride,
+      dailyStreakCurrent: dailyStreakCurrentOverride,
+      dailyStreakLongest: dailyStreakLongestOverride,
     );
+  }
+
+  @override
+  Future<HomeSummary> getHome() async {
+    getHomeCallCount++;
+    return homeSummaryOverride ??
+        const HomeSummary(
+          dailyStreakCurrent: 0,
+          dailyStreakLongest: 0,
+          missions: [],
+          activeEvents: [],
+          leaderboardPosition: null,
+        );
   }
 
   @override
@@ -475,5 +608,296 @@ void main() {
 
     expect(controller.screen, AppScreen.profile);
     expect(controller.profile, isNull);
+  });
+
+  testWidgets('startDailyRush begins a Rush sourced from the daily-rush endpoint, not a normal category', (tester) async {
+    final fakeApi = FakeQuizApi();
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.startDailyRush();
+    await tester.pump();
+
+    expect(fakeApi.startDailyRushCallCount, 1);
+    expect(controller.screen, AppScreen.game);
+    expect(controller.isDailyRush, true);
+    expect(controller.qIndex, 0);
+  });
+
+  testWidgets('resuming an in-progress Daily Rush starts the local qIndex at the server-reported current_index', (tester) async {
+    final fakeApi = FakeQuizApi()..dailyRushStartCurrentIndex = 3;
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.startDailyRush();
+    await tester.pump();
+
+    expect(controller.qIndex, 3);
+  });
+
+  testWidgets('finishing a Daily Rush surfaces rank and daily-best comparison, and refreshes the daily status', (tester) async {
+    final fakeApi = FakeQuizApi()
+      ..isDailyRushOverride = true
+      ..dailyRankOverride = 4
+      ..dailyPreviousBestScoreOverride = 300
+      ..isNewDailyBestOverride = true;
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.startDailyRush();
+    await tester.pump();
+    final initialStatusLoads = fakeApi.getDailyRushStatusCallCount;
+
+    for (var i = 0; i < 10; i++) {
+      await controller.selectAnswer(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700));
+    }
+
+    expect(controller.isDailyRush, true);
+    expect(controller.dailyRank, 4);
+    expect(controller.dailyPreviousBestScore, 300);
+    expect(controller.isNewDailyBest, true);
+    // The daily status tile's data (score/rank/completed) just changed, so it's reloaded —
+    // not just the lifetime profile, which was already covered by an earlier test.
+    expect(fakeApi.getDailyRushStatusCallCount, greaterThan(initialStatusLoads));
+  });
+
+  testWidgets('finishing a normal (non-daily) Rush does not touch the daily status endpoint', (tester) async {
+    final fakeApi = FakeQuizApi();
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+    for (var i = 0; i < 10; i++) {
+      await controller.selectAnswer(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700));
+    }
+
+    expect(controller.isDailyRush, false);
+    expect(fakeApi.getDailyRushStatusCallCount, 0);
+  });
+
+  testWidgets('goToLeaderboard switches screens and loads the requested period', (tester) async {
+    final fakeApi = FakeQuizApi();
+    final controller = QuizController(quizApi: fakeApi);
+
+    controller.goToLeaderboard(period: LeaderboardPeriod.daily);
+    await tester.pump();
+
+    expect(controller.screen, AppScreen.leaderboard);
+    expect(controller.leaderboardPeriod, LeaderboardPeriod.daily);
+    expect(controller.leaderboardPage, isNotNull);
+  });
+
+  testWidgets('starting a fresh (non-daily) Rush resets any leftover Daily Rush result state', (tester) async {
+    final fakeApi = FakeQuizApi()
+      ..isDailyRushOverride = true
+      ..dailyRankOverride = 2
+      ..isNewDailyBestOverride = true;
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.startDailyRush();
+    await tester.pump();
+    await controller.selectAnswer(0); // just enough to reach /finish eventually isn't needed here
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1700));
+
+    // Bail out of the Daily Rush mid-way and start a normal one instead.
+    controller.goHome();
+    await tester.pump();
+    fakeApi.isDailyRushOverride = false; // the next Rush this fake grades is a normal one
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+
+    expect(controller.isDailyRush, false);
+    expect(controller.dailyRank, isNull);
+    expect(controller.isNewDailyBest, false);
+  });
+
+  testWidgets('revealClue asks the server and advances clueCount for a progressive question', (tester) async {
+    final fakeApi = FakeQuizApi()
+      ..revealClueResultOverride = const ClueReveal(cluesRevealed: 2, clueText: 'Clue 2', cluesTotal: 3);
+    fakeApi.rushQuestions[0] = _progressiveQuestion(1);
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+
+    expect(controller.clueCount, 1);
+
+    await controller.revealClue();
+    await tester.pump();
+
+    expect(fakeApi.revealClueCallCount, 1);
+    expect(controller.clueCount, 2);
+  });
+
+  testWidgets('revealClue is a no-op for a non-progressive question', (tester) async {
+    final fakeApi = FakeQuizApi(); // default question is plain text, has no clues
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+
+    await controller.revealClue();
+    await tester.pump();
+
+    expect(fakeApi.revealClueCallCount, 0);
+    expect(controller.clueCount, 1);
+  });
+
+  testWidgets('useRemoveOne marks an option removed and adopts the server-reported remaining count', (tester) async {
+    final fakeApi = FakeQuizApi()
+      ..useRemoveOneResultOverride = const RemoveOneResult(removedOptionIndex: 2, usesRemaining: 0);
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+
+    expect(controller.removeOneUsesRemaining, 1); // from SessionStart's default
+
+    await controller.useRemoveOne();
+    await tester.pump();
+
+    expect(fakeApi.useRemoveOneCallCount, 1);
+    expect(controller.removedOptionIndex, 2);
+    expect(controller.removeOneUsesRemaining, 0);
+  });
+
+  testWidgets('useRemoveOne is a no-op once already used on the current question', (tester) async {
+    final fakeApi = FakeQuizApi();
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+
+    await controller.useRemoveOne();
+    await tester.pump();
+    await controller.useRemoveOne(); // swallowed by the removedOptionIndex guard
+    await tester.pump();
+
+    expect(fakeApi.useRemoveOneCallCount, 1);
+  });
+
+  testWidgets('a Double Down offer surfaces before the next question, and a risky choice/outcome flow through',
+      (tester) async {
+    final fakeApi = FakeQuizApi()..doubleDownOfferOverride = const DoubleDownOffer(questionId: 2);
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+
+    await controller.selectAnswer(0); // question id 1
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 1700)); // fires _nextQuestion
+
+    expect(controller.awaitingDoubleDownChoice, true);
+    expect(controller.qIndex, 1);
+
+    await controller.chooseDoubleDown('risky');
+    await tester.pump();
+
+    expect(fakeApi.chooseDoubleDownCallCount, 1);
+    expect(fakeApi.lastDoubleDownChoiceRequested, 'risky');
+    expect(controller.awaitingDoubleDownChoice, false);
+    expect(controller.currentDoubleDownChoice, 'risky');
+
+    // Answer question 2 with the server reporting the risky outcome.
+    fakeApi.doubleDownChoiceOverride = 'risky';
+    fakeApi.doubleDownMultiplierOverride = 2.0;
+    await controller.selectAnswer(0);
+    await tester.pump();
+
+    expect(controller.lastDoubleDownChoice, 'risky');
+    expect(controller.lastDoubleDownMultiplier, 2.0);
+
+    // Drain the remaining Rush so no timers are left pending at test teardown.
+    await tester.pump(const Duration(milliseconds: 1700));
+    for (var i = 2; i < 10; i++) {
+      await controller.selectAnswer(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700));
+    }
+  });
+
+  testWidgets('Home summary (streak/missions/events) refreshes after finishing a Rush', (tester) async {
+    final fakeApi = FakeQuizApi()
+      ..homeSummaryOverride = const HomeSummary(
+        dailyStreakCurrent: 2,
+        dailyStreakLongest: 5,
+        missions: [
+          Mission(
+            key: 'complete_1_rush', name: 'Warm Up', description: 'Complete 1 Rush.',
+            resetPeriod: 'daily', target: 1, progress: 0, completed: false, rewardXp: 30,
+          ),
+        ],
+        activeEvents: [],
+        leaderboardPosition: LeaderboardPosition(rank: 3, total: 20),
+      );
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+    expect(fakeApi.getHomeCallCount, 0, reason: 'selectCategory alone does not touch home — that only happens on boot/login and after finishing');
+
+    for (var i = 0; i < 10; i++) {
+      await controller.selectAnswer(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700));
+    }
+    await tester.pump(); // let the fire-and-forget loadHome() call resolve
+
+    expect(fakeApi.getHomeCallCount, 1, reason: 'finishing a Rush refreshes the home summary');
+    expect(controller.homeSummary?.dailyStreakCurrent, 2);
+  });
+
+  testWidgets('newly completed missions and an extended daily streak surface on the results screen state', (tester) async {
+    final fakeApi = FakeQuizApi()
+      ..newlyCompletedMissionsOverride = const [
+        CompletedMission(key: 'complete_daily_rush', name: "Today's Challenge", rewardXp: 60),
+      ]
+      ..xpMultiplierAppliedOverride = 2.0
+      ..dailyStreakCurrentOverride = 4;
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+    expect(controller.dailyStreakCurrent, 0); // nothing reported yet — fresh Rush
+
+    for (var i = 0; i < 10; i++) {
+      await controller.selectAnswer(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700));
+    }
+
+    expect(controller.newlyCompletedMissions.map((m) => m.key), ["complete_daily_rush"]);
+    expect(controller.lastXpMultiplierApplied, 2.0);
+    expect(controller.dailyStreakCurrent, 4);
+    expect(controller.dailyStreakJustExtended, true, reason: '4 > the previous known value of 0');
+  });
+
+  testWidgets('Play Again resets the per-Rush mission/streak-extended flags but keeps the known streak count', (tester) async {
+    final fakeApi = FakeQuizApi()
+      ..newlyCompletedMissionsOverride = const [
+        CompletedMission(key: 'complete_1_rush', name: 'Warm Up', rewardXp: 30),
+      ]
+      ..dailyStreakCurrentOverride = 3;
+    final controller = QuizController(quizApi: fakeApi);
+
+    await controller.selectCategory(_testCategory);
+    await tester.pump();
+    for (var i = 0; i < 10; i++) {
+      await controller.selectAnswer(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700));
+    }
+    expect(controller.newlyCompletedMissions, isNotEmpty);
+    expect(controller.dailyStreakJustExtended, true);
+
+    controller.playAgain();
+    await tester.pump();
+
+    expect(controller.newlyCompletedMissions, isEmpty);
+    expect(controller.dailyStreakJustExtended, false);
+    expect(controller.dailyStreakCurrent, 3, reason: 'the known streak count itself is not a per-Rush flag');
   });
 }

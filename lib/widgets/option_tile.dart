@@ -14,6 +14,7 @@ class OptionTile extends StatefulWidget {
   final bool isCorrectOption;
   final bool isSelected;
   final bool shake;
+  final bool isRemoved;
 
   const OptionTile({
     super.key,
@@ -27,6 +28,7 @@ class OptionTile extends StatefulWidget {
     required this.isCorrectOption,
     required this.isSelected,
     required this.shake,
+    this.isRemoved = false,
   });
 
   @override
@@ -79,7 +81,12 @@ class _OptionTileState extends State<OptionTile> with TickerProviderStateMixin {
     Color color = AppColors.darkText;
     String icon = '';
 
-    if (widget.answered) {
+    if (widget.isRemoved && !widget.answered) {
+      // Remove One eliminated this option — greyed out and unselectable, distinct
+      // from the post-answer "wrong" look (no ✗, this wasn't picked, just ruled out).
+      bg = AppColors.disabledBg;
+      color = AppColors.disabledText;
+    } else if (widget.answered) {
       if (widget.isGrading) {
         // Result not known yet — neutral pending look, no red/green guess.
         bg = AppColors.disabledBg;
@@ -113,7 +120,7 @@ class _OptionTileState extends State<OptionTile> with TickerProviderStateMixin {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
-          onTap: widget.answered ? null : widget.onTap,
+          onTap: (widget.answered || widget.isRemoved) ? null : widget.onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -179,10 +186,14 @@ class _OptionTileState extends State<OptionTile> with TickerProviderStateMixin {
                 Expanded(
                   child: Text(
                     widget.text,
-                    style: AppFonts.inter(size: 15, weight: FontWeight.w700, color: color),
+                    style: AppFonts.inter(size: 15, weight: FontWeight.w700, color: color).copyWith(
+                      decoration: widget.isRemoved && !widget.answered ? TextDecoration.lineThrough : null,
+                    ),
                   ),
                 ),
-                if (icon.isNotEmpty)
+                if (widget.isRemoved && !widget.answered)
+                  Text('🚫', style: AppFonts.inter(size: 14))
+                else if (icon.isNotEmpty)
                   Text(icon, style: AppFonts.inter(size: 16, weight: FontWeight.w800, color: color)),
               ],
             ),

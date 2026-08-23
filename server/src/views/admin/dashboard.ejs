@@ -35,6 +35,28 @@
         <a href="/admin/categories/new" class="btn-primary">+ New category</a>
         <a href="/admin/questions/new" class="btn-secondary">+ New question</a>
       </div>
+
+      <div class="card p-6 mt-8">
+        <h2 class="font-bold text-slate-900 mb-4">Retention</h2>
+        <div class="flex items-center gap-8">
+          <div>
+            <div class="text-2xl font-extrabold text-slate-900">🔥 <%= activeStreaks %></div>
+            <div class="text-xs text-slate-500">Players with an active daily streak</div>
+          </div>
+          <div class="flex-1">
+            <div class="text-xs text-slate-500 mb-2">Active events</div>
+            <% if (activeEvents.length === 0) { %>
+              <div class="text-sm text-slate-400">None right now</div>
+            <% } else { %>
+              <div class="flex flex-wrap gap-2">
+                <% activeEvents.forEach(function(e) { %>
+                  <span class="badge-brand"><%= e.name %></span>
+                <% }); %>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 </body>

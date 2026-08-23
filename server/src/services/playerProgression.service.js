@@ -23,10 +23,20 @@ async function hasInsaneSpeedAnswer(connection, playerId) {
  * (sessions.controller.finish) is responsible for only invoking this on the
  * in_progress -> completed transition, never on a repeat /finish call.
  */
-async function applyRushProgression(connection, { playerId, rushScore, correctCount, bestStreak, isPerfectRush, sumResponseTimeMs, questionsAnswered, accuracyPct }) {
+async function applyRushProgression(connection, {
+  playerId, rushScore, correctCount, bestStreak, isPerfectRush, sumResponseTimeMs, questionsAnswered, accuracyPct,
+  // Phase 6 (Retention Systems): bonusXp folds in this Rush's mission rewards
+  // (see missions.service.evaluateMissionProgress) so they land in the SAME
+  // players write as the Rush's own XP, rather than a second UPDATE. xpMultiplier
+  // is any currently-active event's effect (see events.service.xpMultiplierAt) —
+  // applied to the combined total, since "Double XP" means all XP earned, not
+  // just the Rush-derived portion. Both default to the identity (0, 1) so every
+  // existing caller/test is unaffected.
+  bonusXp = 0, xpMultiplier = 1,
+}) {
   const [[player]] = await connection.query('SELECT * FROM players WHERE id = ? FOR UPDATE', [playerId]);
 
-  const xpAwarded = calculateXpAward({ correctCount, bestStreak, rushScore, isPerfectRush });
+  const xpAwarded = Math.round((calculateXpAward({ correctCount, bestStreak, rushScore, isPerfectRush }) + bonusXp) * xpMultiplier);
   const previousLevel = levelForXp(player.lifetime_xp).level;
   const newLifetimeXp = player.lifetime_xp + xpAwarded;
   const levelInfo = levelForXp(newLifetimeXp);

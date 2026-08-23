@@ -4,6 +4,10 @@ import 'package:flutter/foundation.dart' hide Category;
 import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../models/category.dart';
+import '../models/daily_rush_status.dart';
+import '../models/home_summary.dart';
+import '../models/leaderboard.dart';
+import '../models/mission.dart';
 import '../models/player.dart';
 import '../models/player_profile.dart';
 import '../models/question.dart';
@@ -12,7 +16,7 @@ import '../services/audio_player_service.dart';
 import '../services/auth_service.dart';
 import '../services/quiz_api.dart';
 
-enum AppScreen { boot, login, signup, home, categories, game, results, profile }
+enum AppScreen { boot, login, signup, home, categories, game, results, profile, leaderboard }
 
 enum AnswerFeedback { none, correct, wrong, timeout }
 
@@ -42,6 +46,16 @@ String speedLabelFor(double speedMultiplier, {required bool hasTimer}) {
   if (speedMultiplier >= 1.25) return 'FAST!';
   if (speedMultiplier >= 1.05) return 'GOOD!';
   return 'CLOSE!';
+}
+
+/// Mirrors server mechanics.config.js's CLUE_SCORE_MULTIPLIERS — display only,
+/// so the reveal-clue button can show "next clue: 60% score" up front. The
+/// server remains the sole source of truth for the actual multiplier applied.
+const kClueScoreMultipliers = [1.0, 0.8, 0.6, 0.4, 0.2];
+
+double clueMultiplierHintFor(int cluesRevealed) {
+  final index = cluesRevealed.clamp(1, kClueScoreMultipliers.length) - 1;
+  return kClueScoreMultipliers[index];
 }
 
 class QuizController extends ChangeNotifier {
@@ -106,6 +120,53 @@ class QuizController extends ChangeNotifier {
   bool leveledUp = false;
   List<Achievement> newlyUnlockedAchievements = [];
 
+  // Competition (Phase 4). `dailyRushStatus` drives the Home screen's Daily Rush
+  // tile — refreshed on boot and after every finished Rush, same lifecycle as
+  // `profile`. `isDailyRush`/`dailyRank`/etc are this Rush's own outcome, only
+  // meaningful when it was today's official Daily Rush attempt.
+  DailyRushStatus? dailyRushStatus;
+  bool isDailyRush = false;
+  int? dailyRank;
+  int? dailyPreviousBestScore;
+  bool isNewDailyBest = false;
+
+  LeaderboardPage? leaderboardPage;
+  LeaderboardPeriod leaderboardPeriod = LeaderboardPeriod.global;
+  bool isLoadingLeaderboard = false;
+  String? leaderboardError;
+
+  // Retention systems (Phase 6) — daily streak, missions, and active events for
+  // the Home screen. `homeSummary` refreshes on the same lifecycle as `profile`/
+  // `dailyRushStatus` (boot and after every finished Rush). `newlyCompletedMissions`
+  // and the streak fields below are this Rush's own outcome from /finish, kept
+  // separate from homeSummary so the results screen doesn't wait on a second
+  // network round-trip to show what just happened.
+  HomeSummary? homeSummary;
+  List<CompletedMission> newlyCompletedMissions = [];
+  double lastXpMultiplierApplied = 1.0;
+  int dailyStreakCurrent = 0;
+  bool dailyStreakJustExtended = false;
+
+  // Strategic mechanics (Phase 5) — clues, the Remove One power-up, and the
+  // Double Down risk/reward decision. All server-authoritative: the client only
+  // ever reflects what the last server response said, and asks permission
+  // (via the reveal-clue/remove-one/double-down endpoints) before assuming
+  // anything changed. `clueCount` continues to double as "clues revealed for
+  // the current question", now kept in sync with the server instead of purely local.
+  int removeOneUsesRemaining = 0;
+  bool isUsingRemoveOne = false;
+  int? removedOptionIndex;
+  bool isRevealingClue = false;
+  DoubleDownOffer? pendingDoubleDownOffer; // set once submitAnswer reports a new offer
+  bool awaitingDoubleDownChoice = false; // true while the decision overlay should show
+  bool isChoosingDoubleDown = false;
+  String currentDoubleDownChoice = 'none'; // this question's committed choice, if any
+  String lastDoubleDownChoice = 'none';
+  double lastDoubleDownMultiplier = 1.0;
+  int lastCluesRevealed = 1;
+  double lastClueMultiplier = 1.0;
+  bool lastRemoveOneUsed = false;
+
   // Rush Momentum (0-100) and the breakdown behind the most recent answer,
   // used by the feedback overlay/HUD — never affects scoring.
   double momentum = 0;
@@ -144,7 +205,10 @@ class QuizController extends ChangeNotifier {
     } on ApiException catch (e) {
       errorMessage = e.message;
     }
-    loadProfile(); // fire-and-forget: home screen renders fine before this resolves
+    // Fire-and-forget: home screen renders fine before any of these resolve.
+    loadProfile();
+    loadDailyRushStatus();
+    loadHome();
     screen = AppScreen.home;
     notifyListeners();
   }
@@ -234,6 +298,8 @@ class QuizController extends ChangeNotifier {
     isPlaying = false;
     shakeIndex = null;
     audioError = null;
+    removedOptionIndex = null;
+    currentDoubleDownChoice = 'none';
     _qStartTs = DateTime.now();
     notifyListeners();
     _playQuestionAudio(q.audioUrl, q.hasTimer);
@@ -357,6 +423,16 @@ class QuizController extends ChangeNotifier {
       lastIsMilestone = result.isCorrect && kStreakMilestones.contains(streak);
       _applyMomentum(isCorrect: result.isCorrect, timedOut: result.timedOut, speedMultiplier: result.speedMultiplier);
 
+      lastCluesRevealed = result.cluesRevealed;
+      lastClueMultiplier = result.clueMultiplier;
+      lastRemoveOneUsed = result.removeOneUsed;
+      removeOneUsesRemaining = result.removeOneUsesRemaining;
+      lastDoubleDownChoice = result.doubleDownChoice;
+      lastDoubleDownMultiplier = result.doubleDownMultiplier;
+      // A new offer (if any) applies to the NEXT question — _nextQuestion below
+      // decides whether to show the decision overlay before that question starts.
+      pendingDoubleDownOffer = result.doubleDownOffer ?? pendingDoubleDownOffer;
+
       if (result.isCorrect) {
         correctCount += 1;
       } else {
@@ -411,8 +487,42 @@ class QuizController extends ChangeNotifier {
     } else {
       qIndex = next;
       feedback = AnswerFeedback.none;
+      // If the last answer just unlocked a Double Down offer, it's for THIS
+      // question — hold here with the decision overlay instead of starting the
+      // timer/narration; startQuestion runs once the player picks (see below).
+      if (pendingDoubleDownOffer?.questionId == questions[next].id) {
+        awaitingDoubleDownChoice = true;
+        notifyListeners();
+      } else {
+        notifyListeners();
+        startQuestion(next);
+      }
+    }
+  }
+
+  /// Records Safe or Risky for the currently-offered Double Down question, then
+  /// starts it. Declining is just choosing 'safe' — either way the offer is spent.
+  Future<void> chooseDoubleDown(String choice) async {
+    if (!awaitingDoubleDownChoice || isChoosingDoubleDown) return;
+    isChoosingDoubleDown = true;
+    notifyListeners();
+    var appliedChoice = choice;
+    try {
+      await quizApi.chooseDoubleDown(sessionId!, choice);
+    } on ApiException catch (e) {
+      // Non-fatal: proceed as safe (the server default when no choice is on record)
+      // rather than stranding the player on the decision screen.
+      errorMessage = e.message;
+      appliedChoice = 'safe';
+    } finally {
+      isChoosingDoubleDown = false;
+      awaitingDoubleDownChoice = false;
+      pendingDoubleDownOffer = null;
+      // startQuestion resets per-question state (including currentDoubleDownChoice),
+      // so the applied choice must be set after it runs, not before.
+      startQuestion(qIndex);
+      currentDoubleDownChoice = appliedChoice;
       notifyListeners();
-      startQuestion(next);
     }
   }
 
@@ -432,11 +542,27 @@ class QuizController extends ChangeNotifier {
       xpAwarded = summary.xpAwarded;
       leveledUp = summary.leveledUp;
       newlyUnlockedAchievements = summary.newlyUnlockedAchievements;
-      if (isNewPersonalBest || isNewBestStreak || isPerfectRush || leveledUp || newlyUnlockedAchievements.isNotEmpty) {
+      isDailyRush = summary.isDailyRush;
+      dailyRank = summary.dailyRank;
+      dailyPreviousBestScore = summary.dailyPreviousBestScore;
+      isNewDailyBest = summary.isNewDailyBest;
+      newlyCompletedMissions = summary.newlyCompletedMissions;
+      lastXpMultiplierApplied = summary.xpMultiplierApplied;
+      dailyStreakJustExtended = summary.dailyStreakCurrent > dailyStreakCurrent;
+      dailyStreakCurrent = summary.dailyStreakCurrent;
+      if (isNewPersonalBest ||
+          isNewBestStreak ||
+          isPerfectRush ||
+          leveledUp ||
+          newlyUnlockedAchievements.isNotEmpty ||
+          isNewDailyBest ||
+          newlyCompletedMissions.isNotEmpty) {
         HapticFeedback.heavyImpact();
       }
       notifyListeners();
       loadProfile(); // lifetime XP/level/records/achievements just changed — refresh for later screens
+      if (isDailyRush) loadDailyRushStatus(); // today's tile (score/rank/completed) just changed too
+      loadHome(); // missions/streak/leaderboard position may all have just changed too
     } on ApiException {
       // Non-fatal: the results screen already shows the locally-tracked
       // totals, which mirror the server's authoritative per-answer
@@ -460,10 +586,48 @@ class QuizController extends ChangeNotifier {
     }
   }
 
+  Future<void> loadDailyRushStatus() async {
+    try {
+      dailyRushStatus = await quizApi.getDailyRushStatus();
+      notifyListeners();
+    } on ApiException {
+      // Non-fatal — same as loadProfile above.
+    }
+  }
+
+  Future<void> loadHome() async {
+    try {
+      homeSummary = await quizApi.getHome();
+      notifyListeners();
+    } on ApiException {
+      // Non-fatal — same as loadProfile above.
+    }
+  }
+
   void goToProfile() {
     screen = AppScreen.profile;
     notifyListeners();
     loadProfile(); // refresh in case it's been a while since boot/last Rush
+  }
+
+  void goToLeaderboard({LeaderboardPeriod? period}) {
+    screen = AppScreen.leaderboard;
+    notifyListeners();
+    loadLeaderboard(period: period);
+  }
+
+  Future<void> loadLeaderboard({LeaderboardPeriod? period}) async {
+    if (period != null) leaderboardPeriod = period;
+    isLoadingLeaderboard = true;
+    leaderboardError = null;
+    notifyListeners();
+    try {
+      leaderboardPage = await quizApi.getLeaderboard(period: leaderboardPeriod);
+    } on ApiException catch (e) {
+      leaderboardError = e.message;
+    }
+    isLoadingLeaderboard = false;
+    notifyListeners();
   }
 
   void goHome() {
@@ -475,6 +639,57 @@ class QuizController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Shared by a normal Rush (selectCategory) and Daily Rush (startDailyRush) —
+  /// both just fetch a SessionStart from a different endpoint; everything about
+  /// actually playing it (this reset + the question flow) is identical.
+  void _beginRush(SessionStart start, {required bool isDaily}) {
+    sessionId = start.sessionId;
+    questions = start.questions;
+    qIndex = start.currentIndex;
+    isDailyRush = isDaily;
+    score = 0;
+    streak = 0;
+    bestStreak = 0;
+    correctCount = 0;
+    wrongCount = 0;
+    responseTimes.clear();
+    avgResponseTimeMs = 0;
+    durationMs = 0;
+    personalBestScore = null;
+    isNewPersonalBest = false;
+    personalBestStreak = null;
+    isNewBestStreak = false;
+    isPerfectRush = false;
+    xpAwarded = 0;
+    leveledUp = false;
+    newlyUnlockedAchievements = [];
+    dailyRank = null;
+    dailyPreviousBestScore = null;
+    isNewDailyBest = false;
+    momentum = 0;
+    lastSpeedLabel = '';
+    lastStreakBeforeAnswer = 0;
+    lastIsMilestone = false;
+    removeOneUsesRemaining = start.removeOneUsesRemaining;
+    removedOptionIndex = null;
+    pendingDoubleDownOffer = null;
+    awaitingDoubleDownChoice = false;
+    currentDoubleDownChoice = 'none';
+    lastDoubleDownChoice = 'none';
+    lastDoubleDownMultiplier = 1.0;
+    lastCluesRevealed = 1;
+    lastClueMultiplier = 1.0;
+    lastRemoveOneUsed = false;
+    newlyCompletedMissions = [];
+    lastXpMultiplierApplied = 1.0;
+    dailyStreakJustExtended = false;
+    feedback = AnswerFeedback.none;
+    isCreatingSession = false;
+    screen = AppScreen.game;
+    notifyListeners();
+    startQuestion(start.currentIndex);
+  }
+
   Future<void> selectCategory(Category category) async {
     _lastCategory = category;
     errorMessage = null;
@@ -482,34 +697,25 @@ class QuizController extends ChangeNotifier {
     notifyListeners();
     try {
       final start = await quizApi.createSession(category.id);
-      sessionId = start.sessionId;
-      questions = start.questions;
-      qIndex = 0;
-      score = 0;
-      streak = 0;
-      bestStreak = 0;
-      correctCount = 0;
-      wrongCount = 0;
-      responseTimes.clear();
-      avgResponseTimeMs = 0;
-      durationMs = 0;
-      personalBestScore = null;
-      isNewPersonalBest = false;
-      personalBestStreak = null;
-      isNewBestStreak = false;
-      isPerfectRush = false;
-      xpAwarded = 0;
-      leveledUp = false;
-      newlyUnlockedAchievements = [];
-      momentum = 0;
-      lastSpeedLabel = '';
-      lastStreakBeforeAnswer = 0;
-      lastIsMilestone = false;
-      feedback = AnswerFeedback.none;
+      _beginRush(start, isDaily: false);
+    } on ApiException catch (e) {
       isCreatingSession = false;
-      screen = AppScreen.game;
+      errorMessage = e.message;
       notifyListeners();
-      startQuestion(0);
+    }
+  }
+
+  /// Starts today's Daily Rush, or resumes it if there's an unfinished attempt
+  /// from earlier today (see QuizApi.startDailyRush). Rejected by the server
+  /// (surfaced via errorMessage) if today's attempt is already completed —
+  /// the Home screen shouldn't offer this in that state, but stay defensive.
+  Future<void> startDailyRush() async {
+    errorMessage = null;
+    isCreatingSession = true;
+    notifyListeners();
+    try {
+      final start = await quizApi.startDailyRush();
+      _beginRush(start, isDaily: true);
     } on ApiException catch (e) {
       isCreatingSession = false;
       errorMessage = e.message;
@@ -522,11 +728,40 @@ class QuizController extends ChangeNotifier {
     if (cat != null) selectCategory(cat);
   }
 
-  void revealClue() {
+  /// Reveals the next clue via the server — clueCount only ever advances once
+  /// the server confirms it, since that same count is what determines the
+  /// score reduction at answer time (see scoring.service.js's clueMultiplierFor).
+  Future<void> revealClue() async {
     final clues = currentQuestion.clues;
-    if (clues == null) return;
-    if (clueCount < clues.length) {
-      clueCount += 1;
+    if (clues == null || isRevealingClue || answered) return;
+    if (clueCount >= clues.length) return;
+    isRevealingClue = true;
+    notifyListeners();
+    try {
+      final result = await quizApi.revealClue(sessionId!);
+      clueCount = result.cluesRevealed;
+    } on ApiException catch (e) {
+      errorMessage = e.message;
+    } finally {
+      isRevealingClue = false;
+      notifyListeners();
+    }
+  }
+
+  /// Spends a Remove One charge on the current question, if any remain.
+  Future<void> useRemoveOne() async {
+    if (isUsingRemoveOne || answered || removeOneUsesRemaining <= 0 || removedOptionIndex != null) return;
+    isUsingRemoveOne = true;
+    notifyListeners();
+    try {
+      final result = await quizApi.useRemoveOne(sessionId!);
+      removedOptionIndex = result.removedOptionIndex;
+      removeOneUsesRemaining = result.usesRemaining;
+      HapticFeedback.selectionClick();
+    } on ApiException catch (e) {
+      errorMessage = e.message;
+    } finally {
+      isUsingRemoveOne = false;
       notifyListeners();
     }
   }

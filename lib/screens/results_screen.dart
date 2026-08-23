@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/leaderboard.dart';
 import '../state/quiz_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_styles.dart';
@@ -14,11 +15,16 @@ class ResultsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final badges = <String>[
+      if (controller.isDailyRush && controller.dailyRank != null) '📊 DAILY RANK #${controller.dailyRank}',
+      if (controller.isDailyRush && controller.isNewDailyBest) '⚡ NEW DAILY BEST',
       if (controller.isNewPersonalBest) '🏆 NEW PERSONAL BEST',
       if (controller.isNewBestStreak) '🔥 NEW BEST STREAK',
       if (controller.isPerfectRush) '💯 PERFECT RUSH',
       if (controller.leveledUp) '⭐ LEVEL UP! → Lv ${controller.profile?.level ?? ''}',
       for (final a in controller.newlyUnlockedAchievements) '🏅 ${a.name}',
+      if (controller.dailyStreakJustExtended) '🔥 ${controller.dailyStreakCurrent} DAY STREAK',
+      for (final m in controller.newlyCompletedMissions) '🎯 ${m.name}',
+      if (controller.lastXpMultiplierApplied > 1) '✨ ×${controller.lastXpMultiplierApplied.toStringAsFixed(0)} XP EVENT',
     ];
 
     return SafeArea(
@@ -26,7 +32,10 @@ class ResultsScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
         child: Column(
           children: [
-            Text('GAME COMPLETE! 🎉', style: AppFonts.baloo(size: 26)),
+            Text(
+              controller.isDailyRush ? 'DAILY RUSH COMPLETE! ⚡' : 'GAME COMPLETE! 🎉',
+              style: AppFonts.baloo(size: 26),
+            ),
             const SizedBox(height: 14),
             AnimatedCounter(
               value: controller.score,
@@ -47,6 +56,12 @@ class ResultsScreen extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: badges.map((a) => _AchievementBadge(text: a)).toList(),
+              ),
+            ] else if (controller.isDailyRush && controller.dailyPreviousBestScore != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Your best Daily Rush: ${controller.dailyPreviousBestScore}',
+                style: AppFonts.inter(size: 13, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.75)),
               ),
             ] else if (controller.personalBestScore != null) ...[
               const SizedBox(height: 6),
@@ -106,7 +121,11 @@ class ResultsScreen extends StatelessWidget {
                   color: Colors.transparent,
                   child: InkWell(
                     borderRadius: BorderRadius.circular(18),
-                    onTap: controller.playAgain,
+                    // Daily Rush only ever gets the one official attempt — replaying isn't
+                    // offered; the natural next step is seeing where that score landed.
+                    onTap: controller.isDailyRush
+                        ? () => controller.goToLeaderboard(period: LeaderboardPeriod.daily)
+                        : controller.playAgain,
                     child: Container(
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -118,7 +137,10 @@ class ResultsScreen extends StatelessWidget {
                         ],
                       ),
                       alignment: Alignment.center,
-                      child: Text('PLAY AGAIN', style: AppFonts.baloo(size: 17, color: AppColors.darkText)),
+                      child: Text(
+                        controller.isDailyRush ? 'VIEW LEADERBOARD' : 'PLAY AGAIN',
+                        style: AppFonts.baloo(size: 17, color: AppColors.darkText),
+                      ),
                     ),
                   ),
                 ),
