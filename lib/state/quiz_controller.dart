@@ -16,7 +16,18 @@ import '../services/audio_player_service.dart';
 import '../services/auth_service.dart';
 import '../services/quiz_api.dart';
 
-enum AppScreen { boot, login, signup, home, categories, game, results, profile, leaderboard }
+enum AppScreen {
+  boot,
+  login,
+  signup,
+  home,
+  categories,
+  game,
+  results,
+  profile,
+  leaderboard,
+  events,
+}
 
 enum AnswerFeedback { none, correct, wrong, timeout }
 
@@ -60,8 +71,8 @@ double clueMultiplierHintFor(int cluesRevealed) {
 
 class QuizController extends ChangeNotifier {
   QuizController({AuthService? authService, QuizApi? quizApi})
-      : authService = authService ?? AuthService(ApiClient.instance),
-        quizApi = quizApi ?? QuizApi(ApiClient.instance);
+    : authService = authService ?? AuthService(ApiClient.instance),
+      quizApi = quizApi ?? QuizApi(ApiClient.instance);
 
   final AuthService authService;
   final QuizApi quizApi;
@@ -157,10 +168,13 @@ class QuizController extends ChangeNotifier {
   bool isUsingRemoveOne = false;
   int? removedOptionIndex;
   bool isRevealingClue = false;
-  DoubleDownOffer? pendingDoubleDownOffer; // set once submitAnswer reports a new offer
-  bool awaitingDoubleDownChoice = false; // true while the decision overlay should show
+  DoubleDownOffer?
+  pendingDoubleDownOffer; // set once submitAnswer reports a new offer
+  bool awaitingDoubleDownChoice =
+      false; // true while the decision overlay should show
   bool isChoosingDoubleDown = false;
-  String currentDoubleDownChoice = 'none'; // this question's committed choice, if any
+  String currentDoubleDownChoice =
+      'none'; // this question's committed choice, if any
   String lastDoubleDownChoice = 'none';
   double lastDoubleDownMultiplier = 1.0;
   int lastCluesRevealed = 1;
@@ -233,7 +247,11 @@ class QuizController extends ChangeNotifier {
     authError = null;
     notifyListeners();
     try {
-      player = await authService.signup(email: email, password: password, displayName: displayName);
+      player = await authService.signup(
+        email: email,
+        password: password,
+        displayName: displayName,
+      );
       authLoading = false;
       await _loadCategoriesAndGoHome();
     } on ApiException catch (e) {
@@ -279,7 +297,9 @@ class QuizController extends ChangeNotifier {
     _tickTimer = null;
   }
 
-  int _elapsedMs() => _qStartTs == null ? 0 : DateTime.now().difference(_qStartTs!).inMilliseconds;
+  int _elapsedMs() => _qStartTs == null
+      ? 0
+      : DateTime.now().difference(_qStartTs!).inMilliseconds;
 
   // ---- Game flow ----
 
@@ -354,7 +374,10 @@ class QuizController extends ChangeNotifier {
   // server-side fallback timestamp, just less generously.
   Future<void> _pingQuestionStart() async {
     try {
-      await quizApi.startQuestion(sessionId: sessionId!, questionId: currentQuestion.id);
+      await quizApi.startQuestion(
+        sessionId: sessionId!,
+        questionId: currentQuestion.id,
+      );
     } on ApiException {
       // Ignored — see comment above.
     }
@@ -409,7 +432,9 @@ class QuizController extends ChangeNotifier {
       );
       isGrading = false;
       gradedCorrectIndex = result.correctIndex;
-      shakeIndex = (!result.isCorrect && selectedIndex >= 0) ? selectedIndex : null;
+      shakeIndex = (!result.isCorrect && selectedIndex >= 0)
+          ? selectedIndex
+          : null;
 
       lastStreakBeforeAnswer = streak;
       score = result.score;
@@ -419,9 +444,15 @@ class QuizController extends ChangeNotifier {
       lastDifficulty = result.difficulty;
       lastSpeedMultiplier = result.speedMultiplier;
       lastStreakMultiplier = result.streakMultiplier;
-      lastSpeedLabel = result.isCorrect ? speedLabelFor(result.speedMultiplier, hasTimer: hasTimer) : '';
+      lastSpeedLabel = result.isCorrect
+          ? speedLabelFor(result.speedMultiplier, hasTimer: hasTimer)
+          : '';
       lastIsMilestone = result.isCorrect && kStreakMilestones.contains(streak);
-      _applyMomentum(isCorrect: result.isCorrect, timedOut: result.timedOut, speedMultiplier: result.speedMultiplier);
+      _applyMomentum(
+        isCorrect: result.isCorrect,
+        timedOut: result.timedOut,
+        speedMultiplier: result.speedMultiplier,
+      );
 
       lastCluesRevealed = result.cluesRevealed;
       lastClueMultiplier = result.clueMultiplier;
@@ -445,7 +476,9 @@ class QuizController extends ChangeNotifier {
         HapticFeedback.heavyImpact();
       } else if (result.isCorrect) {
         feedback = AnswerFeedback.correct;
-        lastIsMilestone ? HapticFeedback.mediumImpact() : HapticFeedback.lightImpact();
+        lastIsMilestone
+            ? HapticFeedback.mediumImpact()
+            : HapticFeedback.lightImpact();
       } else {
         feedback = AnswerFeedback.wrong;
         HapticFeedback.mediumImpact();
@@ -469,7 +502,11 @@ class QuizController extends ChangeNotifier {
   // formula: correct nudges it up (more if fast), wrong nudges it down, and a
   // timeout knocks it down hard — reflecting an overall rough patch even if
   // streak recovers quickly afterward.
-  void _applyMomentum({required bool isCorrect, required bool timedOut, required double speedMultiplier}) {
+  void _applyMomentum({
+    required bool isCorrect,
+    required bool timedOut,
+    required double speedMultiplier,
+  }) {
     if (timedOut) {
       momentum = (momentum - 25).clamp(0, 100);
     } else if (!isCorrect) {
@@ -608,6 +645,13 @@ class QuizController extends ChangeNotifier {
     screen = AppScreen.profile;
     notifyListeners();
     loadProfile(); // refresh in case it's been a while since boot/last Rush
+  }
+
+  void goToEvents() {
+    screen = AppScreen.events;
+    notifyListeners();
+    loadHome(); // refresh missions/streak/events in case it's been a while
+    loadDailyRushStatus();
   }
 
   void goToLeaderboard({LeaderboardPeriod? period}) {
@@ -750,7 +794,11 @@ class QuizController extends ChangeNotifier {
 
   /// Spends a Remove One charge on the current question, if any remain.
   Future<void> useRemoveOne() async {
-    if (isUsingRemoveOne || answered || removeOneUsesRemaining <= 0 || removedOptionIndex != null) return;
+    if (isUsingRemoveOne ||
+        answered ||
+        removeOneUsesRemaining <= 0 ||
+        removedOptionIndex != null)
+      return;
     isUsingRemoveOne = true;
     notifyListeners();
     try {

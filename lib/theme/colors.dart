@@ -137,4 +137,22 @@ class AppColors {
     end: Alignment.bottomRight,
     colors: [imgPlaceholderA, imgPlaceholderB],
   );
+
+  // ---- Home v2 (dark arcade theme) ----
+  // Scoped to the Home screen only — every other screen keeps the original
+  // bright `screenBackground` gradient above, so this redesign doesn't
+  // silently reskin the rest of the app. The background itself is now
+  // assets/images/background.png (DecorationImage in home_screen.dart);
+  // these colors remain for the UI chrome painted on top of it.
+  static const Color homeDeepNavy = Color(0xFF0A0620);
+  static const Color homeMidPurple = Color(0xFF2C1152);
+
+  static const Color energyGold = Color(0xFFFFC94A);
+  static const Color coinGold = Color(0xFFFFD24A);
+  static const Color addButtonGreen = Color(0xFF3ED66B);
+
+  static const Color tileBlue = Color(0xFF2E9BFF);
+  static const Color tilePurple = Color(0xFFB84BFF);
+  static const Color tileGreen = Color(0xFF34D66B);
+  static const Color tileOrange = Color(0xFFFF8A3D);
 }

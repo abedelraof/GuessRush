@@ -9,13 +9,18 @@ class AppFonts {
     required double size,
     FontWeight weight = FontWeight.w800,
     Color color = Colors.white,
+    // TextStyle forbids setting `color` and `foreground` at the same time
+    // (e.g. a gradient stroke Paint) — so when `foreground` is passed, we
+    // drop `color` rather than sending both.
+    Paint? foreground,
     double? height,
     double? letterSpacing,
   }) {
     return GoogleFonts.baloo2(
       fontSize: size,
       fontWeight: weight,
-      color: color,
+      color: foreground == null ? color : null,
+      foreground: foreground,
       height: height,
       letterSpacing: letterSpacing,
     );
