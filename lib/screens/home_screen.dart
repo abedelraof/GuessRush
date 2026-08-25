@@ -25,6 +25,9 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
       child: SafeArea(
+        // Three rows: header and footer are each sized to their own
+        // content (fixed); the middle row is wrapped in Expanded so it
+        // gets whatever space is left over.
         child: Column(
           children: [
             Expanded(
@@ -32,6 +35,7 @@ class HomeScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
                 child: Column(
                   children: [
+                    // --- ROW 1: header — fixed height (its own content). ---
                     _TopBar(
                       controller: controller,
                       name: name,
@@ -39,31 +43,38 @@ class HomeScreen extends StatelessWidget {
                       level: level,
                       trophyScore: trophyScore,
                     ),
+                    // --- ROW 2: logo + buttons — gets the rest of the
+                    // space (Expanded, above). It has two rows of its own:
+                    // the logo (Expanded — gets whatever room is left
+                    // after the buttons below take theirs) and the
+                    // buttons (sized to their own content, not flexible).
+                    // A plain Column needs a bounded height to do this —
+                    // that's what ruled out the old SingleChildScrollView
+                    // here; a scrollable child is handed unbounded height,
+                    // which is incompatible with an Expanded child asking
+                    // for "whatever's left".
                     Expanded(
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Column(
-                          children: [
-                            const SizedBox(height: 4),
-                            const _Logo(),
-                            const SizedBox(height: 6),
-                            const _Tagline(),
-                            const SizedBox(height: 22),
-                            GuessRushPlayButton(onPressed: controller.playNow),
-                            const SizedBox(height: 10),
-                            const _PlayWithFriendsButton(),
-                            const SizedBox(height: 18),
-                            _IconGrid(
-                              onTapLeaderboard: controller.goToLeaderboard,
-                            ),
-                          ],
-                        ),
+                      child: Column(
+                        children: [
+                          Expanded(child: _Logo()),
+                          const _Tagline(),
+                          const SizedBox(height: 22),
+                          GuessRushPlayButton(onPressed: controller.playNow),
+                          const SizedBox(height: 10),
+                          const _PlayWithFriendsButton(),
+                          const SizedBox(height: 18),
+                          _IconGrid(
+                            onTapLeaderboard: controller.goToLeaderboard,
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
             ),
+            // --- ROW 3: footer — fixed height (its own content). ---
             _BottomNav(
               onTapEvents: controller.goToEvents,
               onTapLeaderboard: controller.goToLeaderboard,
@@ -228,21 +239,6 @@ class _TopBar extends StatelessWidget {
           value: '1,250',
           color: AppColors.coinGold,
         ),
-        const SizedBox(width: 8),
-        GestureDetector(
-          onTap: controller.logout,
-          child: Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-            ),
-            alignment: Alignment.center,
-            child: const Icon(Icons.logout, size: 14, color: Colors.white),
-          ),
-        ),
       ],
     );
   }
@@ -293,15 +289,30 @@ class _ResourcePill extends StatelessWidget {
 
 /// The real logo artwork (glowing "?" mark + "GUESS RUSH" wordmark), supplied
 /// as a single image rather than redrawn in Flutter.
+///
+/// This is always used inside an `Expanded` (see HomeScreen's "ROW 2"), so
+/// it's handed a real, bounded height by its parent — `fit: BoxFit.contain`
+/// then does the work of fitting the artwork into whatever box that is,
+/// growing or shrinking with the available space instead of a fixed size.
 class _Logo extends StatelessWidget {
   const _Logo();
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
-      'assets/images/logo.png',
-      width: 300,
-      fit: BoxFit.contain,
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    // OverflowBox lets the image paint wider than the screen's own 20px
+    // side padding (set on an ancestor Column further up) — its own
+    // reported width still matches the padded content area, so the
+    // ancestor Column doesn't see an overflow; the extra width bleeds out
+    // evenly on both sides via the default center alignment, reaching the
+    // screen's true left/right edges.
+    return OverflowBox(
+      maxWidth: screenWidth,
+      child: Image.asset(
+        'assets/images/logo.png',
+        width: screenWidth,
+        fit: BoxFit.contain,
+      ),
     );
   }
 }

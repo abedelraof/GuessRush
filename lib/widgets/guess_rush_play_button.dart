@@ -60,14 +60,68 @@ class _GuessRushPlayButtonState extends State<GuessRushPlayButton> {
   static const _glowA = Color(0xFFFFB000);
   static const _glowB = Color(0xFFFFC400);
 
-  // Drop-shadow colors used behind the white "PLAY" text and the white play
-  // icon, to give them the same molded/dimensional look as the button itself.
+  // Fill color for both the "PLAY" text and the play icon.
   static const _textShadowDeep = Color(0xFF8B3500);
-  static const _iconShadow = Color(0xFF8C3500);
 
   // Corner radius for the button, its InkWell ripple, and its content clip —
   // kept as one named constant so all three always agree.
   static const double _cornerRadius = 24;
+
+  // A ring of small offsets around the origin (roughly evenly spaced by
+  // angle, at ~1px distance) — used below to fake a 1px outline out of
+  // several nudged solid copies. See `_outlineCopies` for why a real
+  // stroked outline doesn't work here.
+  static const _outlineOffsets = [
+    Offset(-0.7, -0.7),
+    Offset(0, -1),
+    Offset(0.7, -0.7),
+    Offset(-1, 0),
+    Offset(1, 0),
+    Offset(-0.7, 0.7),
+    Offset(0, 1),
+    Offset(0.7, 0.7),
+  ];
+
+  // Builds the "outline" for [child] (the play icon or the "PLAY" text): a
+  // ring of solid copies of it, nudged out in each of `_outlineOffsets`,
+  // each recolored via the white-to-gold gradient below. The real, solid
+  // `_textShadowDeep` copy then gets painted on top of these by the caller,
+  // leaving only a thin gradient sliver of each copy peeking out around it.
+  //
+  // This is deliberately NOT a stroked outline (`Paint()..style =
+  // PaintingStyle.stroke`) — Baloo2's glyph outlines are built from
+  // multiple overlapping contours (normal for a display font), and
+  // stroking that raw outline directly follows those contours exactly,
+  // including the seams where they overlap. That left a real gap in the
+  // outline at one edge of the "Y" no matter the stroke join. Every copy
+  // here is an opaque glyph FILL instead, so there's no outline path to
+  // develop a seam in.
+  List<Widget> _outlineCopies(Widget child) {
+    return [
+      for (final offset in _outlineOffsets)
+        Positioned(
+          left: offset.dx,
+          top: offset.dy,
+          // ShaderMask re-colors whatever its child paints using the
+          // gradient, sized to the child's real computed bounds — unlike a
+          // hand-picked Rect passed straight to `createShader`, this can't
+          // drift out of alignment with the actual ink (a Text's local
+          // origin, for example, includes the font's built-in ascent
+          // padding above the caps).
+          child: ShaderMask(
+            blendMode: BlendMode.srcIn,
+            shaderCallback: (bounds) => const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              // _surfaceTop is already #FFF94A — reused here rather than a
+              // second literal for the same color.
+              colors: [Colors.white, _surfaceTop],
+            ).createShader(bounds),
+            child: child,
+          ),
+        ),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -204,74 +258,41 @@ class _GuessRushPlayButtonState extends State<GuessRushPlayButton> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // --- PLAY ICON, with a drop shadow ---
-                        // A single dark copy of the icon sits underneath
-                        // (offset down by 3px), and the real white icon is
-                        // drawn on top of it — the classic "duplicate the
-                        // shape, offset it, put the real one on top" trick
-                        // for a hard-edged drop shadow (as opposed to
-                        // BoxShadow's blurred kind).
+                        // --- PLAY ICON, with the same gradient outline as
+                        // the "PLAY" text below (see `_outlineCopies`). ---
                         SizedBox(
                           width: 38,
                           height: 38,
                           child: Stack(
-                            alignment: Alignment.center,
                             children: [
-                              const Positioned(
-                                top: 3,
-                                child: Icon(
+                              ..._outlineCopies(
+                                const Icon(
                                   Icons.play_arrow_rounded,
                                   size: 38,
-                                  color: _iconShadow,
+                                  color: Colors.white,
                                 ),
                               ),
                               const Icon(
                                 Icons.play_arrow_rounded,
                                 size: 38,
-                                color: Colors.white,
+                                color: _textShadowDeep,
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        // --- "PLAY" TEXT, with a drop shadow + gradient outline ---
-                        // Three copies of the same text, stacked bottom to
-                        // top:
-                        //   1. a white copy offset down 5px = the shadow.
-                        //   2. a STROKE-only copy, same position as the
-                        //      real text, painted with a gradient Paint
-                        //      instead of a flat color = the outline. Only
-                        //      its outer edge is visible once the solid
-                        //      fill copy is painted on top of it.
-                        //   3. the real, solid `_textShadowDeep` fill text.
+                        const SizedBox(width: 4),
+                        // --- "PLAY" TEXT, with a gradient outline ---
+                        // See `_outlineCopies` for why this is a ring of
+                        // offset solid copies rather than a stroked outline.
                         Stack(
                           children: [
-                            Positioned(
-                              left: 0,
-                              top: 5,
-                              child: Text(
+                            ..._outlineCopies(
+                              Text(
                                 'PLAY',
                                 style: AppFonts.baloo(
                                   size: 36,
                                   color: Colors.white,
                                 ),
-                              ),
-                            ),
-                            Text(
-                              'PLAY',
-                              style: AppFonts.baloo(
-                                size: 36,
-                                foreground: Paint()
-                                  ..style = PaintingStyle.stroke
-                                  ..strokeWidth = 3
-                                  ..shader =
-                                      const LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [_surfaceTop, _surfaceBottom],
-                                      ).createShader(
-                                        const Rect.fromLTWH(0, -6, 140, 50),
-                                      ),
                               ),
                             ),
                             Text(
