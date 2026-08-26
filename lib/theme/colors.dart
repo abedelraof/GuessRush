@@ -155,4 +155,5 @@ class AppColors {
   static const Color tilePurple = Color(0xFFB84BFF);
   static const Color tileGreen = Color(0xFF34D66B);
   static const Color tileOrange = Color(0xFFFF8A3D);
+  static const Color tilePink = Color(0xFFFF4FA3);
 }

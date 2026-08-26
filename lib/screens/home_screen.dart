@@ -60,9 +60,9 @@ class HomeScreen extends StatelessWidget {
                           const _Tagline(),
                           const SizedBox(height: 22),
                           GuessRushPlayButton(onPressed: controller.playNow),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 14),
                           const _PlayWithFriendsButton(),
-                          const SizedBox(height: 18),
+                          const SizedBox(height: 14),
                           _IconGrid(
                             onTapLeaderboard: controller.goToLeaderboard,
                           ),
@@ -77,7 +77,6 @@ class HomeScreen extends StatelessWidget {
             // --- ROW 3: footer — fixed height (its own content). ---
             _BottomNav(
               onTapEvents: controller.goToEvents,
-              onTapLeaderboard: controller.goToLeaderboard,
               onTapStats: controller.goToProfile,
             ),
           ],
@@ -304,13 +303,22 @@ class _Logo extends StatelessWidget {
     // side padding (set on an ancestor Column further up) — its own
     // reported width still matches the padded content area, so the
     // ancestor Column doesn't see an overflow; the extra width bleeds out
-    // evenly on both sides via the default center alignment, reaching the
-    // screen's true left/right edges.
+    // evenly on both sides, reaching the screen's true left/right edges.
     return OverflowBox(
       maxWidth: screenWidth,
       child: Image.asset(
         'assets/images/logo.png',
         width: screenWidth,
+        // `Image`'s OWN `alignment` — not `OverflowBox`'s — is what
+        // matters here. `Expanded` hands OverflowBox a *tight* height, and
+        // since nothing here overrides min/maxHeight, that tightness
+        // propagates straight down to Image: it ends up exactly as tall
+        // as the Expanded box, not just its natural aspect-ratio height.
+        // `BoxFit.contain` then letterboxes the (much shorter) artwork
+        // inside that tall box, and `alignment` controls where within it —
+        // `bottomCenter` pushes all the slack above the artwork instead of
+        // centering it, so the tagline right below sits flush against it.
+        alignment: Alignment.bottomCenter,
         fit: BoxFit.contain,
       ),
     );
@@ -344,35 +352,58 @@ class _Tagline extends StatelessWidget {
 
 /// No multiplayer/friends system exists yet — inert, same precedent as the
 /// other not-yet-built tiles below (Categories/How to Play previously,
-/// Rewards/Shop now).
+/// Rewards/Shop now). Styled to match those `_IconTile`s below it (tinted
+/// background/border/glow in one accent color, same 16-radius corners)
+/// instead of the plain frosted-glass look it had before, so it reads as
+/// part of the same button family rather than a one-off.
 class _PlayWithFriendsButton extends StatelessWidget {
   const _PlayWithFriendsButton();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-      ),
-      alignment: Alignment.center,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.people_alt_rounded,
-            size: 16,
-            color: Colors.white.withValues(alpha: 0.85),
+    const color = AppColors.tilePink;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            // Higher than the icon tiles' 0.16 — this sits over a lighter
+            // patch of the background art, and the low-alpha tint read as
+            // washed out/hard to read there.
+            color: color.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.6), width: 1.5),
+            boxShadow: [
+              BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 12),
+            ],
           ),
-          const SizedBox(width: 8),
-          Text(
-            'PLAY WITH FRIENDS',
-            style: AppFonts.inter(size: 13, weight: FontWeight.w800),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // White (not `color`) — now that the background fill is
+              // much more opaque/saturated, an icon in the same accent
+              // hue nearly disappeared into it.
+              Icon(
+                Icons.people_alt_rounded,
+                size: 18,
+                color: Colors.white.withValues(alpha: 0.85),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'PLAY WITH FRIENDS',
+                style: AppFonts.inter(
+                  size: 13,
+                  weight: FontWeight.w800,
+                  color: Colors.white.withValues(alpha: 0.85),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -486,14 +517,9 @@ class _IconTile extends StatelessWidget {
 
 class _BottomNav extends StatelessWidget {
   final VoidCallback onTapEvents;
-  final VoidCallback onTapLeaderboard;
   final VoidCallback onTapStats;
 
-  const _BottomNav({
-    required this.onTapEvents,
-    required this.onTapLeaderboard,
-    required this.onTapStats,
-  });
+  const _BottomNav({required this.onTapEvents, required this.onTapStats});
 
   @override
   Widget build(BuildContext context) {
@@ -510,8 +536,14 @@ class _BottomNav extends StatelessWidget {
         top: false,
         child: SizedBox(
           height: 58,
+          // `stretch` (not the default `center`) is what makes each
+          // _NavItem's Material/InkWell fill the row's full height —
+          // without it, the ink splash/highlight only covered the tight
+          // icon+label content, leaving a visible strip of the bar's own
+          // background unhighlighted above/below it on press.
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const _NavItem(
                 icon: Icons.home_rounded,
@@ -523,7 +555,6 @@ class _BottomNav extends StatelessWidget {
                 label: 'EVENTS',
                 onTap: onTapEvents,
               ),
-              _NavCenterItem(onTap: onTapLeaderboard),
               _NavItem(
                 icon: Icons.bar_chart_rounded,
                 label: 'STATS',
@@ -587,50 +618,6 @@ class _NavItem extends StatelessWidget {
                 ),
               ],
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The elevated center nav button — leads to the leaderboard, matching the
-/// "crown" motif in the reference design.
-class _NavCenterItem extends StatelessWidget {
-  final VoidCallback onTap;
-
-  const _NavCenterItem({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Transform.translate(
-      offset: const Offset(0, -14),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(999),
-          onTap: onTap,
-          child: Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              gradient: AppColors.playNowButton,
-              shape: BoxShape.circle,
-              border: Border.all(color: AppColors.homeDeepNavy, width: 4),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x59000000),
-                  blurRadius: 12,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: const Icon(
-              Icons.military_tech_rounded,
-              color: AppColors.darkText,
-              size: 26,
-            ),
           ),
         ),
       ),
