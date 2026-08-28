@@ -60,19 +60,19 @@ Output ONLY a single valid JSON object matching the shape below — no markdown 
 {
   "questions": [
     {
-      "category": "<one of: <%= categories.map(c => c.key_slug).join(', ') %>>",
-      "type": "<one of: image, audio, video, text, emoji, progressive>",
-      "difficulty": "<one of: easy, medium, hard, extreme>",
-      "label": "<short ALL-CAPS section title, e.g. 'READ & ANSWER', max 64 characters>",
-      "prompt": "<the question text shown to the player, max 255 characters>",
-      "instruct_text": "<optional tone/style hint for text-to-speech narration, or an empty string>",
-      "media_placeholder": "<only when type is 'image': a short description of the image to show, otherwise an empty string>",
-      "media_duration": "<only when type is 'audio' or 'video': clip length like '0:12', otherwise an empty string>",
-      "emojis": "<only when type is 'emoji': 3-5 emoji that encode the answer, otherwise an empty string>",
-      "options": ["<exactly 4 answer choices as strings, only one of which is correct>"],
-      "correct_index": <integer 0-3, the index into "options" of the correct answer>,
-      "clues": ["<only when type is 'progressive': 3-6 clues ordered from vague to obvious, otherwise an empty array>"],
-      "timer_seconds": <integer seconds to answer, or 0 for untimed>
+      "category": "&lt;one of: <%= categories.map(c => c.key_slug).join(', ') %>&gt;",
+      "type": "&lt;one of: image, audio, video, text, emoji, progressive&gt;",
+      "difficulty": "&lt;one of: easy, medium, hard, extreme&gt;",
+      "label": "&lt;short ALL-CAPS section title, e.g. 'READ &amp; ANSWER', max 64 characters&gt;",
+      "prompt": "&lt;the question text shown to the player, max 255 characters&gt;",
+      "instruct_text": "&lt;optional tone/style hint for text-to-speech narration, or an empty string&gt;",
+      "media_placeholder": "&lt;only when type is 'image': a short description of the image to show, otherwise an empty string&gt;",
+      "media_duration": "&lt;only when type is 'audio' or 'video': clip length like '0:12', otherwise an empty string&gt;",
+      "emojis": "&lt;only when type is 'emoji': 3-5 emoji that encode the answer, otherwise an empty string&gt;",
+      "options": ["&lt;exactly 4 answer choices as strings, only one of which is correct&gt;"],
+      "correct_index": &lt;integer 0-3, the index into "options" of the correct answer&gt;,
+      "clues": ["&lt;only when type is 'progressive': 3-6 clues ordered from vague to obvious, otherwise an empty array&gt;"],
+      "timer_seconds": &lt;integer seconds to answer, or 0 for untimed&gt;
     }
   ]
 }
