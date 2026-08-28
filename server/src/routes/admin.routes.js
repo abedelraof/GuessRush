@@ -33,6 +33,10 @@ router.post('/questions/generate/confirm', requireAdmin, asyncHandler(controller
 router.post('/questions/audio-preview', requireAdmin, asyncHandler(controller.audioPreview));
 router.post('/questions/image-preview', requireAdmin, asyncHandler(controller.imagePreview));
 
+router.get('/questions/import', requireAdmin, asyncHandler(controller.importForm));
+router.post('/questions/import', requireAdmin, asyncHandler(controller.importPreview));
+router.post('/questions/import/confirm', requireAdmin, asyncHandler(controller.importConfirm));
+
 router.get('/questions/:id/edit', requireAdmin, asyncHandler(controller.editQuestionForm));
 router.post('/questions/:id', requireAdmin, asyncHandler(controller.updateQuestion));
 router.post('/questions/:id/delete', requireAdmin, asyncHandler(controller.deleteQuestion));

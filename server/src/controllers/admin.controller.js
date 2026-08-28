@@ -192,6 +192,7 @@ async function deleteCategory(req, res) {
 
 async function listQuestions(req, res) {
   const categoryId = req.query.category_id ? Number(req.query.category_id) : null;
+  const importedCount = req.query.imported != null ? Number(req.query.imported) : null;
   const [categories] = await pool.query('SELECT * FROM categories ORDER BY name');
   const [questions] = await pool.query(
     `SELECT q.*, c.name AS category_name FROM questions q
@@ -206,6 +207,7 @@ async function listQuestions(req, res) {
     questions,
     selectedCategoryId: categoryId,
     error: null,
+    importedCount: Number.isInteger(importedCount) ? importedCount : null,
   });
 }
 
@@ -410,6 +412,7 @@ async function deleteQuestion(req, res) {
         questions,
         selectedCategoryId: null,
         error: 'Cannot delete: this question already has answers recorded against it.',
+        importedCount: null,
       });
     }
     throw err;
@@ -544,6 +547,135 @@ async function generateConfirm(req, res) {
   }
 
   res.redirect('/admin/questions');
+}
+
+// ---- Bulk JSON import ----
+
+function importForm(req, res) {
+  res.render('admin/questions/import', { admin: req.admin, error: null });
+}
+
+async function importPreview(req, res) {
+  const body = req.body || {};
+  const [categories] = await pool.query('SELECT * FROM categories ORDER BY name');
+
+  let parsed;
+  try {
+    parsed = JSON.parse(body.payload || '');
+  } catch (err) {
+    return res.status(400).render('admin/questions/import', {
+      admin: req.admin,
+      error: 'That file is not valid JSON.',
+    });
+  }
+
+  const rawQuestions = Array.isArray(parsed)
+    ? parsed
+    : parsed && Array.isArray(parsed.questions)
+    ? parsed.questions
+    : null;
+
+  if (!rawQuestions || rawQuestions.length === 0) {
+    return res.status(400).render('admin/questions/import', {
+      admin: req.admin,
+      error: 'Expected a JSON object with a "questions" array containing at least one question.',
+    });
+  }
+
+  const categoryBySlug = new Map(categories.map((c) => [c.key_slug.toLowerCase(), c.id]));
+  const categoryIds = new Set(categories.map((c) => c.id));
+
+  const questions = rawQuestions.map((raw, idx) => {
+    const q = raw && typeof raw === 'object' ? raw : {};
+    let categoryId = '';
+    if (q.category != null) {
+      categoryId = categoryBySlug.get(String(q.category).trim().toLowerCase()) || '';
+    }
+    if (!categoryId && q.category_id != null && categoryIds.has(Number(q.category_id))) {
+      categoryId = Number(q.category_id);
+    }
+    return {
+      key: `q${idx}`,
+      category_id: categoryId,
+      type: QUESTION_TYPES.includes(q.type) ? q.type : 'text',
+      difficulty: DIFFICULTIES.includes(q.difficulty) ? q.difficulty : 'easy',
+      label: q.label || '',
+      prompt: q.prompt || '',
+      instruct_text: q.instruct_text || '',
+      media_placeholder: q.media_placeholder || '',
+      media_duration: q.media_duration || '',
+      emojis: q.emojis || '',
+      options: Array.isArray(q.options) ? q.options : ['', '', '', ''],
+      correct_index: q.correct_index,
+      clues: Array.isArray(q.clues) ? q.clues : [],
+      timer_seconds: q.timer_seconds || 0,
+    };
+  });
+
+  res.render('admin/questions/import_review', {
+    admin: req.admin,
+    categories,
+    questions,
+    types: QUESTION_TYPES,
+    difficulties: DIFFICULTIES,
+    maxClues: MAX_CLUES,
+    error: null,
+  });
+}
+
+async function importConfirm(req, res) {
+  const body = req.body || {};
+  const rows = Object.values(body.questions || {});
+  if (rows.length === 0) {
+    return res.redirect('/admin/questions');
+  }
+
+  const [categories] = await pool.query('SELECT id FROM categories');
+  const validCategoryIds = new Set(categories.map((c) => c.id));
+
+  let insertedCount = 0;
+  for (const row of rows) {
+    const options = collectOptionsFromBody(row);
+    const correctIndex = Number(row.correct_index);
+    const difficulty = DIFFICULTIES.includes(row.difficulty) ? row.difficulty : 'easy';
+    const categoryId = Number(row.category_id);
+    const isValid =
+      validCategoryIds.has(categoryId) &&
+      QUESTION_TYPES.includes(row.type) &&
+      row.label &&
+      row.prompt &&
+      options.every((o) => o.length > 0) &&
+      Number.isInteger(correctIndex) &&
+      correctIndex >= 0 &&
+      correctIndex < 4;
+    if (!isValid) continue; // silently skip malformed rows rather than fail the whole batch
+
+    const clues = row.type === 'progressive' ? collectCluesFromBody(row) : null;
+
+    await pool.query(
+      `INSERT INTO questions
+        (category_id, type, difficulty, label, prompt, instruct_text, media_placeholder, media_duration, emojis, options, correct_index, clues, timer_seconds)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        categoryId,
+        row.type,
+        difficulty,
+        row.label.trim(),
+        row.prompt.trim(),
+        row.instruct_text ? row.instruct_text.trim() : null,
+        row.media_placeholder ? row.media_placeholder.trim() : null,
+        row.media_duration ? row.media_duration.trim() : null,
+        row.emojis ? row.emojis.trim() : null,
+        JSON.stringify(options),
+        correctIndex,
+        clues && clues.length ? JSON.stringify(clues) : null,
+        Number(row.timer_seconds) || 0,
+      ]
+    );
+    insertedCount++;
+  }
+
+  res.redirect(`/admin/questions?imported=${insertedCount}`);
 }
 
 // ---- AI audio generation ----
@@ -764,6 +896,9 @@ module.exports = {
   generateForm,
   generatePreview,
   generateConfirm,
+  importForm,
+  importPreview,
+  importConfirm,
   audioPreview,
   generateAudioForQuestion,
   imagePreview,

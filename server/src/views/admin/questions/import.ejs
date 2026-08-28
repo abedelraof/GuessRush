@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('../../partials/head', { title: 'Import questions' }) %></head>
+<body>
+  <div class="flex min-h-screen">
+    <%- include('../../partials/sidebar', { active: 'questions' }) %>
+    <main class="flex-1 p-8 max-w-2xl">
+      <a href="/admin/questions" class="text-sm text-slate-500 hover:text-slate-700">← Back to questions</a>
+      <h1 class="text-2xl font-extrabold text-slate-900 mt-2 mb-1">📥 Import questions from JSON</h1>
+      <p class="text-slate-500 text-sm mb-6">Upload a JSON file matching the schema below. You'll review every question before anything is saved.</p>
+
+      <% if (error) { %>
+        <div class="alert-error mb-5">
+          <span>⚠️</span>
+          <span><%= error %></span>
+        </div>
+      <% } %>
+
+      <div class="card p-6 mb-6">
+        <label class="field-label">Expected JSON schema</label>
+        <pre class="rounded-lg bg-slate-900 text-slate-100 text-xs p-4 overflow-x-auto">{
+  "questions": [
+    {
+      "category": "movies",
+      "type": "text",
+      "difficulty": "easy",
+      "label": "Guess the movie",
+      "prompt": "This 1994 film follows two mob hitmen...",
+      "instruct_text": "",
+      "media_placeholder": "",
+      "media_duration": "",
+      "emojis": "",
+      "options": ["Pulp Fiction", "Reservoir Dogs", "Kill Bill", "Jackie Brown"],
+      "correct_index": 0,
+      "clues": [],
+      "timer_seconds": 20
+    }
+  ]
+}</pre>
+        <ul class="text-xs text-slate-500 mt-3 space-y-1 list-disc list-inside">
+          <li><code>category</code> should match an existing category's slug (case-insensitive); a numeric <code>category_id</code> is also accepted.</li>
+          <li><code>type</code> is one of: image, audio, video, text, emoji, progressive.</li>
+          <li><code>options</code> needs exactly 4 entries; <code>correct_index</code> is 0-3.</li>
+          <li><code>clues</code> (up to 6) only apply to the <code>progressive</code> type.</li>
+          <li>Everything except category/type/label/prompt/options/correct_index is optional.</li>
+        </ul>
+      </div>
+
+      <div class="card p-6">
+        <form method="post" action="/admin/questions/import" class="space-y-5" id="import-form">
+          <input type="hidden" name="payload" id="payload-field">
+          <div>
+            <label class="field-label">JSON file</label>
+            <input type="file" accept=".json,application/json" id="json-file-input" required class="field-input">
+            <p id="file-error" class="text-xs text-rose-600 mt-1 hidden">Please choose a valid .json file.</p>
+          </div>
+          <button class="btn-primary" type="submit" id="import-submit">Preview import</button>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    var form = document.getElementById('import-form');
+    var fileInput = document.getElementById('json-file-input');
+    var payloadField = document.getElementById('payload-field');
+    var fileError = document.getElementById('file-error');
+    var submitBtn = document.getElementById('import-submit');
+
+    form.addEventListener('submit', function (e) {
+      var file = fileInput.files[0];
+      if (!file) {
+        e.preventDefault();
+        fileError.classList.remove('hidden');
+        return;
+      }
+      e.preventDefault();
+      fileError.classList.add('hidden');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Reading file…';
+
+      var reader = new FileReader();
+      reader.onload = function () {
+        payloadField.value = reader.result;
+        form.submit();
+      };
+      reader.onerror = function () {
+        fileError.textContent = 'Could not read that file.';
+        fileError.classList.remove('hidden');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Preview import';
+      };
+      reader.readAsText(file);
+    });
+  </script>
+</body>
+</html>

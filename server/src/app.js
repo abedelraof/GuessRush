@@ -20,7 +20,9 @@ app.set('views', path.join(__dirname, 'views'));
 
 app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Bumped from the 100kb default so admin bulk-JSON question imports can go through as a
+// normal urlencoded form field (see admin/questions/import) without needing multipart upload.
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 app.use(cookieParser());
 app.use('/public', express.static(path.join(__dirname, '..', 'public')));
 

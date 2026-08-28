@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head><%- include('../../partials/head', { title: 'Review import' }) %></head>
+<body>
+  <div class="flex min-h-screen">
+    <%- include('../../partials/sidebar', { active: 'questions' }) %>
+    <main class="flex-1 p-8 max-w-3xl">
+      <a href="/admin/questions/import" class="text-sm text-slate-500 hover:text-slate-700">← Back</a>
+      <div class="mt-2 mb-6">
+        <h1 class="text-2xl font-extrabold text-slate-900 mb-1">Review import</h1>
+        <p class="text-slate-500 text-sm">
+          <%= questions.length %> question(s) parsed from the file. Edit anything, discard what you don't want, then save the rest.
+        </p>
+      </div>
+
+      <form method="post" action="/admin/questions/import/confirm" id="review-form">
+        <div class="space-y-5" id="question-cards">
+          <% questions.forEach(function(q, idx) { %>
+            <div class="card p-6 question-card">
+              <div class="flex items-center justify-between mb-4">
+                <span class="badge-brand">Question <%= idx + 1 %></span>
+                <button type="button" class="btn-danger" onclick="this.closest('.question-card').remove()">Discard</button>
+              </div>
+
+              <div class="space-y-5">
+                <div>
+                  <label class="field-label">Category</label>
+                  <select name="questions[<%= q.key %>][category_id]" required class="field-select">
+                    <option value="" <%= q.category_id === '' ? 'selected' : '' %>>Select a category</option>
+                    <% categories.forEach(function(c) { %>
+                      <option value="<%= c.id %>" <%= String(q.category_id) === String(c.id) ? 'selected' : '' %>><%= c.emoji %> <%= c.name %></option>
+                    <% }); %>
+                  </select>
+                  <% if (q.category_id === '') { %>
+                    <p class="text-xs text-rose-600 mt-1">Category not recognized — please select one.</p>
+                  <% } %>
+                </div>
+
+                <div class="grid grid-cols-3 gap-4">
+                  <div>
+                    <label class="field-label">Type</label>
+                    <select name="questions[<%= q.key %>][type]" class="field-select type-select">
+                      <% types.forEach(function(t) { %>
+                        <option value="<%= t %>" <%= q.type === t ? 'selected' : '' %>><%= t %></option>
+                      <% }); %>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="field-label">Difficulty</label>
+                    <select name="questions[<%= q.key %>][difficulty]" class="field-select">
+                      <% difficulties.forEach(function(d) { %>
+                        <option value="<%= d %>" <%= q.difficulty === d ? 'selected' : '' %>><%= d %></option>
+                      <% }); %>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="field-label">Timer (s)</label>
+                    <input type="number" name="questions[<%= q.key %>][timer_seconds]" min="0" class="field-input" value="<%= q.timer_seconds || 0 %>">
+                  </div>
+                </div>
+
+                <div>
+                  <label class="field-label">Label</label>
+                  <input type="text" name="questions[<%= q.key %>][label]" required class="field-input" value="<%= q.label || '' %>">
+                </div>
+                <div>
+                  <label class="field-label">Prompt</label>
+                  <input type="text" name="questions[<%= q.key %>][prompt]" required class="field-input" value="<%= q.prompt || '' %>">
+                </div>
+
+                <div>
+                  <label class="field-label">Instruction / tone <span class="font-normal text-slate-400">(for text-to-speech)</span></label>
+                  <input type="text" name="questions[<%= q.key %>][instruct_text]" class="field-input" value="<%= q.instruct_text || '' %>">
+                </div>
+
+                <div class="type-fields hidden border-t border-slate-100 pt-5" data-types="image">
+                  <label class="field-label">Image placeholder text</label>
+                  <input type="text" name="questions[<%= q.key %>][media_placeholder]" class="field-input" value="<%= q.media_placeholder || '' %>">
+                </div>
+
+                <div class="type-fields hidden border-t border-slate-100 pt-5" data-types="audio,video">
+                  <label class="field-label">Media duration</label>
+                  <input type="text" name="questions[<%= q.key %>][media_duration]" class="field-input" value="<%= q.media_duration || '' %>">
+                </div>
+
+                <div class="type-fields hidden border-t border-slate-100 pt-5" data-types="emoji">
+                  <label class="field-label">Emojis</label>
+                  <input type="text" name="questions[<%= q.key %>][emojis]" class="field-input" value="<%= q.emojis || '' %>">
+                </div>
+
+                <div class="type-fields hidden border-t border-slate-100 pt-5" data-types="progressive">
+                  <label class="field-label">Clues</label>
+                  <div class="space-y-2">
+                    <% for (let i = 0; i < maxClues; i++) { %>
+                      <input type="text" name="questions[<%= q.key %>][clue_<%= i %>]" placeholder="Clue <%= i + 1 %>" class="field-input" value="<%= (q.clues && q.clues[i]) || '' %>">
+                    <% } %>
+                  </div>
+                </div>
+
+                <div class="border-t border-slate-100 pt-5">
+                  <label class="field-label mb-3">Options (select the correct one)</label>
+                  <div class="space-y-3">
+                    <% for (let i = 0; i < 4; i++) { %>
+                      <div class="option-block rounded-xl border border-slate-200 p-4 has-[:checked]:border-brand-400 has-[:checked]:bg-brand-50">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                          <input type="radio" name="questions[<%= q.key %>][correct_index]" value="<%= i %>" <%= Number(q.correct_index) === i ? 'checked' : '' %> required class="accent-brand-500 w-5 h-5 shrink-0">
+                          <input type="text" name="questions[<%= q.key %>][option_<%= i %>]" required
+                            class="flex-1 border-0 p-0 text-base font-semibold text-slate-900 placeholder:text-slate-400 focus:ring-0 bg-transparent"
+                            value="<%= (q.options && q.options[i]) || '' %>">
+                        </label>
+                      </div>
+                    <% } %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% }); %>
+        </div>
+
+        <div class="flex gap-3 mt-6">
+          <button class="btn-primary" type="submit">Confirm &amp; save</button>
+          <a class="btn-secondary" href="/admin/questions">Cancel</a>
+        </div>
+      </form>
+    </main>
+  </div>
+
+  <script>
+    function syncCard(card) {
+      var type = card.querySelector('.type-select').value;
+      card.querySelectorAll('.type-fields').forEach(function (el) {
+        var types = el.getAttribute('data-types').split(',');
+        el.classList.toggle('hidden', types.indexOf(type) === -1);
+      });
+    }
+    document.querySelectorAll('.question-card').forEach(syncCard);
+    document.addEventListener('change', function (e) {
+      if (e.target.classList.contains('type-select')) {
+        syncCard(e.target.closest('.question-card'));
+      }
+    });
+  </script>
+</body>
+</html>
