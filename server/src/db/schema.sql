@@ -74,7 +74,13 @@ CREATE TABLE IF NOT EXISTS player_achievements (
 CREATE TABLE IF NOT EXISTS game_sessions (
   id INT PRIMARY KEY AUTO_INCREMENT,
   player_id INT NOT NULL,
-  category_id INT NOT NULL,
+  -- NULL for a Pick Your Rush session (quick/chaos/streak/chill) — those pull across every
+  -- category, so there's no single category to record. Still NOT NULL-equivalent in practice
+  -- for the legacy single-category flow (`mode` = 'single_category').
+  category_id INT NULL,
+  -- 'single_category' is the original "pick a category" Rush (createSession). The rest are
+  -- Pick Your Rush's game modes (see questionSelection.service.js's selectVariedRushQuestions).
+  mode ENUM('single_category','quick_rush','chaos_rush','streak_rush','chill_rush') NOT NULL DEFAULT 'single_category',
   status ENUM('in_progress','completed') NOT NULL DEFAULT 'in_progress',
   question_ids JSON NOT NULL,
   current_index INT NOT NULL DEFAULT 0,

@@ -64,6 +64,12 @@ const COLUMN_MIGRATIONS = [
   'ALTER TABLE players ADD COLUMN daily_streak_current INT NOT NULL DEFAULT 0 AFTER perfect_rush_count',
   'ALTER TABLE players ADD COLUMN daily_streak_longest INT NOT NULL DEFAULT 0 AFTER daily_streak_current',
   'ALTER TABLE players ADD COLUMN daily_streak_last_date DATE NULL DEFAULT NULL AFTER daily_streak_longest',
+  // Pick Your Rush (game-mode selection replacing the old category picker): a session
+  // now records which mode it was (single_category = the original per-category flow, the
+  // rest are the new cross-category modes), and category_id becomes optional since those
+  // new modes don't have a single category.
+  "ALTER TABLE game_sessions ADD COLUMN mode ENUM('single_category','quick_rush','chaos_rush','streak_rush','chill_rush') NOT NULL DEFAULT 'single_category' AFTER category_id",
+  'ALTER TABLE game_sessions MODIFY COLUMN category_id INT NULL',
 ];
 
 // Backfills players' lifetime stats/records from their existing completed game_sessions/answers

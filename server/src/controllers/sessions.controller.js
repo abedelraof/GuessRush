@@ -45,17 +45,20 @@ function serializeQuestion(row) {
 
 /**
  * Inserts a new game_sessions row for an already-selected, already-ordered
- * question list. Shared by a normal Rush (create, below) and Daily Rush
- * (daily-rush.controller.js) — the only difference between them is how the
- * question list was chosen; everything from here on is the same gameplay.
+ * question list. Shared by a normal Rush (create, below), Daily Rush
+ * (daily-rush.controller.js), and Pick Your Rush (rush.controller.js) — the only
+ * difference between them is how the question list was chosen (and, for Pick Your
+ * Rush, which `mode`); everything from here on is the same gameplay. `categoryId`
+ * is null for every mode except the legacy single-category flow, which has no
+ * single category to record.
  */
-async function insertSession(connectionOrPool, { playerId, categoryId, questionRows }) {
+async function insertSession(connectionOrPool, { playerId, categoryId = null, mode = 'single_category', questionRows }) {
   const questionIds = questionRows.map((q) => q.id);
   const [result] = await connectionOrPool.query(
     `INSERT INTO game_sessions
-      (player_id, category_id, question_ids, current_index, question_started_at, question_start_pinged)
-     VALUES (?, ?, ?, 0, NOW(), 0)`,
-    [playerId, categoryId, JSON.stringify(questionIds)]
+      (player_id, category_id, mode, question_ids, current_index, question_started_at, question_start_pinged)
+     VALUES (?, ?, ?, ?, 0, NOW(), 0)`,
+    [playerId, categoryId, mode, JSON.stringify(questionIds)]
   );
   return result.insertId;
 }
@@ -330,11 +333,17 @@ async function submitAnswer(req, res) {
     const startedAtMs = session.question_started_at ? new Date(session.question_started_at).getTime() : Date.now();
     const serverElapsedMs = Math.max(0, Date.now() - startedAtMs);
 
+    // Chill Rush has no pressure by design — the timer must be suppressed here, in the
+    // server-authoritative grading clock, not just hidden in the client's countdown UI.
+    // question.timer_seconds is the question's own static column; this session-scoped
+    // override is what actually makes "no aggressive timer" true for every answer.
+    const timerSecondsForGrading = session.mode === 'chill_rush' ? 0 : question.timer_seconds;
+
     const { isCorrect, timedOut } = evaluateTiming({
       selectedIndex,
       correctIndex: question.correct_index,
       elapsedMs: serverElapsedMs,
-      timerSeconds: question.timer_seconds,
+      timerSeconds: timerSecondsForGrading,
     });
 
     const streakAfter = isCorrect ? session.streak + 1 : 0;
@@ -355,7 +364,7 @@ async function submitAnswer(req, res) {
       difficulty: question.difficulty,
       isCorrect,
       elapsedMs: serverElapsedMs,
-      timerSeconds: question.timer_seconds,
+      timerSeconds: timerSecondsForGrading,
       streakAfter,
       cluesRevealed,
       doubleDownChoice,
@@ -386,7 +395,10 @@ async function submitAnswer(req, res) {
     const newCorrectCount = session.correct_count + (isCorrect ? 1 : 0);
     const newWrongCount = session.wrong_count + (isCorrect ? 0 : 1);
     const nextIndex = session.current_index + 1;
-    const rushComplete = nextIndex >= questionIds.length;
+    // Streak Rush ends the moment the player misses one — "how far can you go" — rather
+    // than running through the rest of its (generously long, but still finite) question list.
+    const rushComplete =
+      nextIndex >= questionIds.length || (session.mode === 'streak_rush' && !isCorrect);
 
     // Double Down: offered once per Rush, the moment streak first reaches the threshold,
     // for the very next question — never re-offered afterward whether accepted, declined,

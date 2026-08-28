@@ -14,6 +14,14 @@ const DIFFICULTY_PROGRESSION = [
   'extreme', 'extreme',
 ];
 
+// Streak Rush (Pick Your Rush): open-ended — the Rush ends the moment the
+// player misses one, not after a fixed question count — so this is just an
+// upper bound on how long a perfect run can go before the question bank
+// itself runs out. buildStreakProgression() below ramps difficulty up
+// through these tier sizes, then holds at 'extreme' for the remainder.
+const STREAK_RUSH_MAX_LENGTH = 40;
+const STREAK_DIFFICULTY_TIER_SIZES = { easy: 3, medium: 4, hard: 5 };
+
 const BASE_SCORES = { easy: 100, medium: 150, hard: 225, extreme: 350 };
 
 // Multiplier applied to a correct answer's score, keyed by the player's streak
@@ -42,6 +50,8 @@ module.exports = {
   DIFFICULTY_LEVELS,
   RUSH_LENGTH,
   DIFFICULTY_PROGRESSION,
+  STREAK_RUSH_MAX_LENGTH,
+  STREAK_DIFFICULTY_TIER_SIZES,
   BASE_SCORES,
   STREAK_MULTIPLIER_TIERS,
   MAX_SPEED_BONUS_PCT,

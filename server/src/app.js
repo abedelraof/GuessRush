@@ -9,6 +9,7 @@ const sessionsRoutes = require('./routes/sessions.routes');
 const leaderboardRoutes = require('./routes/leaderboard.routes');
 const profileRoutes = require('./routes/profile.routes');
 const dailyRushRoutes = require('./routes/dailyRush.routes');
+const rushRoutes = require('./routes/rush.routes');
 const homeRoutes = require('./routes/home.routes');
 const adminRoutes = require('./routes/admin.routes');
 const errorHandler = require('./middleware/errorHandler');
@@ -34,6 +35,7 @@ app.use('/api/sessions', sessionsRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/daily-rush', dailyRushRoutes);
+app.use('/api/rush', rushRoutes);
 app.use('/api/home', homeRoutes);
 
 app.use('/admin', adminRoutes);
