@@ -17,6 +17,8 @@ const QUESTION_TYPES = ['image', 'audio', 'video', 'text', 'emoji', 'progressive
 const DIFFICULTIES = ['easy', 'medium', 'hard', 'extreme'];
 const MAX_CLUES = 6;
 const CLAUDE_KEY_SETTING = 'anthropic_api_key';
+// Only needed for "identity-linked" Claude API keys — see claude.service.js.
+const CLAUDE_WORKSPACE_SETTING = 'anthropic_workspace_id';
 const TTS_KEY_SETTING = 'tts_api_key';
 const MAX_GENERATE_COUNT = 15;
 
@@ -449,7 +451,10 @@ async function generatePreview(req, res) {
     });
   }
 
-  const apiKey = await settingsService.getSetting(CLAUDE_KEY_SETTING);
+  const [apiKey, workspaceId] = await Promise.all([
+    settingsService.getSetting(CLAUDE_KEY_SETTING),
+    settingsService.getSetting(CLAUDE_WORKSPACE_SETTING),
+  ]);
   if (!apiKey) {
     return res.status(400).render('admin/questions/generate', {
       admin: req.admin,
@@ -460,7 +465,7 @@ async function generatePreview(req, res) {
 
   let suggestions;
   try {
-    suggestions = await claudeService.generateQuestions({ apiKey, categoryName: category.name, count });
+    suggestions = await claudeService.generateQuestions({ apiKey, workspaceId, categoryName: category.name, count });
   } catch (err) {
     const message = claudeService.friendlyErrorMessage(err);
     return res.status(502).render('admin/questions/generate', { admin: req.admin, categories, error: message });
@@ -771,14 +776,16 @@ async function generateImageForQuestionOption(req, res) {
 async function settingsPage(req, res) {
   const [rows] = await pool.query('SELECT email, display_name FROM players WHERE id = ?', [req.admin.id]);
   const account = rows[0];
-  const [claudeKey, ttsKey] = await Promise.all([
+  const [claudeKey, workspaceId, ttsKey] = await Promise.all([
     settingsService.getSetting(CLAUDE_KEY_SETTING),
+    settingsService.getSetting(CLAUDE_WORKSPACE_SETTING),
     settingsService.getSetting(TTS_KEY_SETTING),
   ]);
   res.render('admin/settings', {
     admin: req.admin,
     account,
     maskedClaudeKey: settingsService.maskKey(claudeKey),
+    workspaceId,
     maskedTtsKey: settingsService.maskKey(ttsKey),
     accountError: null,
     accountSuccess: null,
@@ -791,14 +798,16 @@ async function settingsPage(req, res) {
 
 async function renderSettingsWithError(req, res, status, overrides) {
   const [rows] = await pool.query('SELECT email, display_name FROM players WHERE id = ?', [req.admin.id]);
-  const [claudeKey, ttsKey] = await Promise.all([
+  const [claudeKey, workspaceId, ttsKey] = await Promise.all([
     settingsService.getSetting(CLAUDE_KEY_SETTING),
+    settingsService.getSetting(CLAUDE_WORKSPACE_SETTING),
     settingsService.getSetting(TTS_KEY_SETTING),
   ]);
   res.status(status).render('admin/settings', {
     admin: req.admin,
     account: rows[0],
     maskedClaudeKey: settingsService.maskKey(claudeKey),
+    workspaceId,
     maskedTtsKey: settingsService.maskKey(ttsKey),
     accountError: null,
     accountSuccess: null,
@@ -850,16 +859,30 @@ async function updateAccount(req, res) {
 }
 
 async function updateClaudeKey(req, res) {
-  const { api_key: apiKey } = req.body || {};
-  if (!apiKey || !apiKey.trim()) {
+  const { api_key: apiKey, workspace_id: workspaceId } = req.body || {};
+  const hasExistingKey = Boolean(await settingsService.getSetting(CLAUDE_KEY_SETTING));
+  // The key field is required the first time, but a saved key is never shown again
+  // (by design), so a blank submission afterward just means "leave it as-is" — e.g.
+  // saving the Workspace ID alone without having to re-paste the key too.
+  if (!hasExistingKey && (!apiKey || !apiKey.trim())) {
     return renderSettingsWithError(req, res, 400, { claudeKeyError: 'Enter a key to save.' });
   }
-  await settingsService.setSetting(CLAUDE_KEY_SETTING, apiKey.trim());
+  if (apiKey && apiKey.trim()) {
+    await settingsService.setSetting(CLAUDE_KEY_SETTING, apiKey.trim());
+  }
+  // Optional — only "identity-linked" keys need it (see claude.service.js). An
+  // empty submission clears it rather than leaving a stale value behind.
+  if (workspaceId && workspaceId.trim()) {
+    await settingsService.setSetting(CLAUDE_WORKSPACE_SETTING, workspaceId.trim());
+  } else {
+    await settingsService.deleteSetting(CLAUDE_WORKSPACE_SETTING);
+  }
   await renderSettingsWithError(req, res, 200, { claudeKeySuccess: 'Claude API key saved.' });
 }
 
 async function removeClaudeKey(req, res) {
   await settingsService.deleteSetting(CLAUDE_KEY_SETTING);
+  await settingsService.deleteSetting(CLAUDE_WORKSPACE_SETTING);
   await renderSettingsWithError(req, res, 200, { claudeKeySuccess: 'Claude API key removed.' });
 }
 

@@ -48,10 +48,18 @@ const GenerateResponseSchema = z.object({
 /**
  * Ask Claude for `count` quiz questions themed to `categoryName`, mixing the
  * supported question types. Never caches/reuses a client across calls — the
- * key can be replaced or removed from Settings at any time.
+ * key (and workspace ID) can be replaced or removed from Settings at any time.
+ *
+ * `workspaceId` is only required for "identity-linked" API keys (the newer
+ * per-person key type in the Anthropic Console) — without it, those keys are
+ * rejected with "anthropic-workspace-id is required...". A classic
+ * workspace-scoped key doesn't need this at all, so it's optional here.
  */
-async function generateQuestions({ apiKey, categoryName, count }) {
-  const client = new Anthropic({ apiKey });
+async function generateQuestions({ apiKey, workspaceId, categoryName, count }) {
+  const client = new Anthropic({
+    apiKey,
+    defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
+  });
 
   const response = await client.messages.parse({
     model: 'claude-opus-5',
@@ -90,6 +98,12 @@ async function generateQuestions({ apiKey, categoryName, count }) {
 function friendlyErrorMessage(err) {
   if (err instanceof Anthropic.AuthenticationError) {
     return 'Claude rejected the API key saved in Settings — check it and try again.';
+  }
+  if (typeof err.message === 'string' && err.message.includes('anthropic-workspace-id')) {
+    return (
+      'This is an identity-linked Claude API key, which needs a Workspace ID as well — ' +
+      'add it in Settings under the Claude API key, then try again.'
+    );
   }
   if (err instanceof Anthropic.RateLimitError) {
     return 'Claude is rate-limited right now — try again shortly.';

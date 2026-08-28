@@ -69,12 +69,26 @@
             </div>
           <% } %>
 
-          <form method="post" action="/admin/settings/claude-key" class="flex items-end gap-3">
-            <div class="flex-1">
-              <label class="field-label"><%= maskedClaudeKey ? 'Replace key' : 'API key' %></label>
-              <input class="field-input font-mono" type="password" name="api_key" placeholder="sk-ant-..." autocomplete="off">
+          <form method="post" action="/admin/settings/claude-key">
+            <div class="flex items-end gap-3">
+              <div class="flex-1">
+                <label class="field-label"><%= maskedClaudeKey ? 'Replace key' : 'API key' %></label>
+                <input class="field-input font-mono" type="password" name="api_key" placeholder="sk-ant-..." autocomplete="off">
+              </div>
             </div>
-            <button class="btn-primary" type="submit">Save key</button>
+
+            <div class="mt-4 pt-4 border-t border-slate-200">
+              <label class="field-label">Workspace ID <span class="font-normal text-slate-400">(optional)</span></label>
+              <p class="text-xs text-slate-500 mb-2">
+                Only needed if the key above is an <em>identity-linked</em> key from the Anthropic Console —
+                those are rejected with an "anthropic-workspace-id is required" error unless this is set.
+                Find it in the Anthropic Console under the workspace this key should act in. A classic
+                workspace-scoped key doesn't need this at all.
+              </p>
+              <input class="field-input font-mono" type="text" name="workspace_id" value="<%= workspaceId || '' %>" placeholder="wrkspc_...">
+            </div>
+
+            <button class="btn-primary mt-4" type="submit">Save</button>
           </form>
         </div>
       </section>
