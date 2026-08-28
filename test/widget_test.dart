@@ -8,7 +8,9 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('Boots to the login screen when logged out', (WidgetTester tester) async {
+  testWidgets('Boots to the login screen when logged out', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const QuizoApp());
     await tester.pump(const Duration(seconds: 1));
 
@@ -16,7 +18,9 @@ void main() {
     expect(find.text('LOG IN'), findsOneWidget);
   });
 
-  testWidgets('Sign up link navigates to the signup screen', (WidgetTester tester) async {
+  testWidgets('Sign up link navigates to the signup screen', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const QuizoApp());
     await tester.pump(const Duration(seconds: 1));
 

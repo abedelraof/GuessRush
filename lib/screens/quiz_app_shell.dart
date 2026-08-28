@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../state/quiz_controller.dart';
-import '../theme/colors.dart';
 import 'categories_screen.dart';
 import 'events_screen.dart';
 import 'game_screen.dart';
@@ -41,9 +40,17 @@ class _QuizAppShellState extends State<QuizAppShell> {
   Widget _buildScreen() {
     switch (controller.screen) {
       case AppScreen.boot:
-        return const SizedBox.expand(
-          key: ValueKey('boot'),
-          child: Center(child: CircularProgressIndicator(color: Colors.white)),
+        return Container(
+          key: const ValueKey('boot'),
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage('assets/images/background.png'),
+              fit: BoxFit.cover,
+            ),
+          ),
+          child: Center(
+            child: Image.asset('assets/images/logo.png', width: 260),
+          ),
         );
       case AppScreen.login:
         return LoginScreen(
@@ -93,7 +100,12 @@ class _QuizAppShellState extends State<QuizAppShell> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(gradient: AppColors.screenBackground),
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/images/app_background.png'),
+          fit: BoxFit.cover,
+        ),
+      ),
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 280),
         transitionBuilder: (child, animation) => FadeTransition(

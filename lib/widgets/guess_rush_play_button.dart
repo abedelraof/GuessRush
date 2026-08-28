@@ -175,7 +175,7 @@ class _GuessRushPlayButtonState extends State<GuessRushPlayButton> {
               // compensated for here. See `_outlineWidth` above.
               padding: const EdgeInsets.all(_outlineWidth),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.6),
+                color: Colors.black.withValues(alpha: 0.5),
                 // Concentric with the button's own `_cornerRadius` — the
                 // outline's radius is that plus the padding, so the black
                 // ring stays an even `_outlineWidth` thick around the

@@ -95,11 +95,14 @@ class AppColors {
     Color(0xFFAC61FF),
   ];
 
+  // Matches the Home v2 dark arcade theme below (`homeDeepNavy` ->
+  // `homeMidPurple`) — every screen shows this through `QuizAppShell`
+  // unless it paints its own opaque background over it, as Home itself
+  // does with assets/images/background.png.
   static const LinearGradient screenBackground = LinearGradient(
     begin: Alignment(-0.5, -1),
     end: Alignment(0.5, 1),
-    colors: [screenBgA, screenBgB, screenBgC],
-    stops: [0, 0.5, 1],
+    colors: [homeDeepNavy, homeMidPurple],
   );
 
   static const LinearGradient streakBadge = LinearGradient(
@@ -139,11 +142,11 @@ class AppColors {
   );
 
   // ---- Home v2 (dark arcade theme) ----
-  // Scoped to the Home screen only — every other screen keeps the original
-  // bright `screenBackground` gradient above, so this redesign doesn't
-  // silently reskin the rest of the app. The background itself is now
-  // assets/images/background.png (DecorationImage in home_screen.dart);
-  // these colors remain for the UI chrome painted on top of it.
+  // Now the app-wide theme — `screenBackground` above is built from these
+  // two colors, so every screen matches. Home itself still paints its own
+  // opaque assets/images/background.png over the top (DecorationImage in
+  // home_screen.dart); these colors remain for the UI chrome painted on
+  // top of that image too.
   static const Color homeDeepNavy = Color(0xFF0A0620);
   static const Color homeMidPurple = Color(0xFF2C1152);
 
@@ -156,4 +159,13 @@ class AppColors {
   static const Color tileGreen = Color(0xFF34D66B);
   static const Color tileOrange = Color(0xFFFF8A3D);
   static const Color tilePink = Color(0xFFFF4FA3);
+
+  // Sampled directly from the question mark in assets/images/logo.png
+  // (averaged over its flat mid-tone body, excluding the specular
+  // highlight and the dark rim shading) — not a hand-picked blue.
+  static const Color logoBlue = Color(0xFF51D4FC);
+
+  // Same question mark, sampled from its dark rim/shadow edge instead
+  // of the flat body.
+  static const Color logoBlueDark = Color(0xFF0E0678);
 }

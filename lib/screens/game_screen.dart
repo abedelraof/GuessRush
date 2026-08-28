@@ -20,228 +20,303 @@ class GameScreen extends StatelessWidget {
 
   const GameScreen({super.key, required this.controller});
 
+  // One background per round, in order — cycling through them as the Rush
+  // progresses so each round reads as visually distinct. Split by quartile
+  // of the Rush's length rather than a hardcoded question count, so this
+  // keeps working if the server's rounds-per-Rush ever changes.
+  static const List<String> _roundBackgrounds = [
+    'assets/images/app_background.png',
+    'assets/images/app_background2.png',
+    'assets/images/app_background3.png',
+    'assets/images/app_background4.png',
+  ];
+
+  String _backgroundForRound(int qIndex, int questionTotal) {
+    if (questionTotal <= 0) return _roundBackgrounds.first;
+    final segment = (qIndex * _roundBackgrounds.length ~/ questionTotal).clamp(
+      0,
+      _roundBackgrounds.length - 1,
+    );
+    return _roundBackgrounds[segment];
+  }
+
   @override
   Widget build(BuildContext context) {
     final q = controller.currentQuestion;
 
-    return Stack(
-      children: [
-        SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'QUESTION ${controller.qIndex + 1} / ${controller.questionTotal}',
-                          style: AppFonts.inter(
-                            size: 12,
-                            weight: FontWeight.w800,
-                            color: Colors.white.withValues(alpha: 0.9),
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            _StreakChip(streak: controller.streak),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Text('⭐', style: TextStyle(fontSize: 14)),
-                                  const SizedBox(width: 6),
-                                  AnimatedCounter(
-                                    value: controller.score,
-                                    style: AppFonts.inter(size: 13, weight: FontWeight.w800),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Expanded(
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(999),
-                            child: Container(
-                              height: 8,
-                              color: Colors.white.withValues(alpha: 0.25),
-                              alignment: Alignment.centerLeft,
-                              child: TweenAnimationBuilder<double>(
-                                tween: Tween(begin: 0, end: controller.progressPct.clamp(0, 1)),
-                                duration: const Duration(milliseconds: 400),
-                                curve: Curves.easeOut,
-                                builder: (context, factor, child) => FractionallySizedBox(
-                                  widthFactor: factor,
-                                  child: child,
-                                ),
-                                child: Container(color: AppColors.goldTimer),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        MomentumMeter(momentum: controller.momentum),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 20),
+    return Container(
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage(
+            _backgroundForRound(controller.qIndex, controller.questionTotal),
+          ),
+          fit: BoxFit.cover,
+        ),
+      ),
+      child: Stack(
+        children: [
+          SafeArea(
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
                   child: Column(
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                decoration: BoxDecoration(
-                                  gradient: AppColors.questionLabel,
-                                  borderRadius: BorderRadius.circular(999),
-                                  boxShadow: const [
-                                    BoxShadow(color: Color(0x26000000), blurRadius: 10, offset: Offset(0, 4)),
-                                  ],
-                                ),
-                                child: Text(q.label, style: AppFonts.inter(size: 12, weight: FontWeight.w800)),
-                              ),
-                              if (controller.currentDoubleDownChoice == 'risky') ...[
-                                const SizedBox(width: 8),
-                                const _RiskyBadge(),
-                              ],
-                            ],
+                          Text(
+                            'QUESTION ${controller.qIndex + 1} / ${controller.questionTotal}',
+                            style: AppFonts.inter(
+                              size: 12,
+                              weight: FontWeight.w800,
+                              color: Colors.white.withValues(alpha: 0.9),
+                              letterSpacing: 0.5,
+                            ),
                           ),
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              _RemoveOneButton(controller: controller),
-                              if (q.hasTimer) ...[
-                                const SizedBox(width: 8),
-                                TimerRing(timeLeft: controller.timeLeft, totalSeconds: q.timerSeconds),
-                              ],
+                              _StreakChip(streak: controller.streak),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      '⭐',
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    AnimatedCounter(
+                                      value: controller.score,
+                                      style: AppFonts.inter(
+                                        size: 13,
+                                        weight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ],
                           ),
                         ],
                       ),
-                      if (controller.audioError != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          '🔇 ${controller.audioError}',
-                          style: AppFonts.inter(
-                            size: 11,
-                            weight: FontWeight.w600,
-                            color: Colors.white.withValues(alpha: 0.75),
-                          ),
-                        ),
-                      ],
-                      if (controller.errorMessage != null) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.92),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${controller.errorMessage!} Tap an option to try again.',
-                            style: AppFonts.inter(size: 13, weight: FontWeight.w600, color: AppColors.feedbackWrongTitle),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 14),
-                      if (q.showTopPrompt) ...[
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            q.prompt ?? '',
-                            style: AppFonts.baloo(size: 21, weight: FontWeight.w700, height: 1.25),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                      ],
-                      _QuestionBody(controller: controller, q: q),
-                      const SizedBox(height: 16),
-                      GridView.count(
-                        crossAxisCount: 2,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 10,
-                        crossAxisSpacing: 10,
-                        childAspectRatio: 2.4,
+                      const SizedBox(height: 8),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          for (var i = 0; i < q.options.length; i++)
-                            OptionTile(
-                              index: i,
-                              text: q.options[i],
-                              imgBg: AppColors.optionHues[i % 4],
-                              imageUrl: i < q.optionImageUrls.length ? q.optionImageUrls[i] : null,
-                              answered: controller.answered,
-                              isGrading: controller.isGrading,
-                              isCorrectOption: i == controller.gradedCorrectIndex,
-                              isSelected: controller.selected == i,
-                              shake: controller.shakeIndex == i,
-                              isRemoved: controller.removedOptionIndex == i,
-                              onTap: () => controller.selectAnswer(i),
+                          Expanded(
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(999),
+                              child: Container(
+                                height: 8,
+                                color: Colors.white.withValues(alpha: 0.25),
+                                alignment: Alignment.centerLeft,
+                                child: TweenAnimationBuilder<double>(
+                                  tween: Tween(
+                                    begin: 0,
+                                    end: controller.progressPct.clamp(0, 1),
+                                  ),
+                                  duration: const Duration(milliseconds: 400),
+                                  curve: Curves.easeOut,
+                                  builder: (context, factor, child) =>
+                                      FractionallySizedBox(
+                                        widthFactor: factor,
+                                        child: child,
+                                      ),
+                                  child: Container(color: AppColors.goldTimer),
+                                ),
+                              ),
                             ),
+                          ),
+                          const SizedBox(width: 12),
+                          MomentumMeter(momentum: controller.momentum),
                         ],
                       ),
                     ],
                   ),
                 ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 6, 20, 20),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: AppColors.questionLabel,
+                                    borderRadius: BorderRadius.circular(999),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Color(0x26000000),
+                                        blurRadius: 10,
+                                        offset: Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    q.label,
+                                    style: AppFonts.inter(
+                                      size: 12,
+                                      weight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                if (controller.currentDoubleDownChoice ==
+                                    'risky') ...[
+                                  const SizedBox(width: 8),
+                                  const _RiskyBadge(),
+                                ],
+                              ],
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _RemoveOneButton(controller: controller),
+                                if (q.hasTimer) ...[
+                                  const SizedBox(width: 8),
+                                  TimerRing(
+                                    timeLeft: controller.timeLeft,
+                                    totalSeconds: q.timerSeconds,
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ],
+                        ),
+                        if (controller.audioError != null) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            '🔇 ${controller.audioError}',
+                            style: AppFonts.inter(
+                              size: 11,
+                              weight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.75),
+                            ),
+                          ),
+                        ],
+                        if (controller.errorMessage != null) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.92),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${controller.errorMessage!} Tap an option to try again.',
+                              style: AppFonts.inter(
+                                size: 13,
+                                weight: FontWeight.w600,
+                                color: AppColors.feedbackWrongTitle,
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 14),
+                        if (q.showTopPrompt) ...[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              q.prompt ?? '',
+                              style: AppFonts.baloo(
+                                size: 21,
+                                weight: FontWeight.w700,
+                                height: 1.25,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                        _QuestionBody(controller: controller, q: q),
+                        const SizedBox(height: 16),
+                        GridView.count(
+                          crossAxisCount: 2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 2.4,
+                          children: [
+                            for (var i = 0; i < q.options.length; i++)
+                              OptionTile(
+                                index: i,
+                                text: q.options[i],
+                                imgBg: AppColors.optionHues[i % 4],
+                                imageUrl: i < q.optionImageUrls.length
+                                    ? q.optionImageUrls[i]
+                                    : null,
+                                answered: controller.answered,
+                                isGrading: controller.isGrading,
+                                isCorrectOption:
+                                    i == controller.gradedCorrectIndex,
+                                isSelected: controller.selected == i,
+                                shake: controller.shakeIndex == i,
+                                isRemoved: controller.removedOptionIndex == i,
+                                onTap: () => controller.selectAnswer(i),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (controller.feedback != AnswerFeedback.none &&
+              controller.gradedCorrectIndex != null)
+            Positioned.fill(
+              child: FeedbackOverlay(
+                feedback: controller.feedback,
+                answerScore: controller.xpGained,
+                streak: controller.streak,
+                streakBeforeAnswer: controller.lastStreakBeforeAnswer,
+                isMilestone: controller.lastIsMilestone,
+                speedLabel: controller.lastSpeedLabel,
+                streakMultiplier: controller.lastStreakMultiplier,
+                difficulty: controller.lastDifficulty,
+                correctAnswerText: q.options[controller.gradedCorrectIndex!],
+                momentumTier: controller.momentumTier,
+                cluesRevealed: controller.lastCluesRevealed,
+                clueMultiplier: controller.lastClueMultiplier,
+                removeOneUsed: controller.lastRemoveOneUsed,
+                doubleDownChoice: controller.lastDoubleDownChoice,
+                doubleDownMultiplier: controller.lastDoubleDownMultiplier,
               ),
-            ],
-          ),
-        ),
-        if (controller.feedback != AnswerFeedback.none && controller.gradedCorrectIndex != null)
-          Positioned.fill(
-            child: FeedbackOverlay(
-              feedback: controller.feedback,
-              answerScore: controller.xpGained,
-              streak: controller.streak,
-              streakBeforeAnswer: controller.lastStreakBeforeAnswer,
-              isMilestone: controller.lastIsMilestone,
-              speedLabel: controller.lastSpeedLabel,
-              streakMultiplier: controller.lastStreakMultiplier,
-              difficulty: controller.lastDifficulty,
-              correctAnswerText: q.options[controller.gradedCorrectIndex!],
-              momentumTier: controller.momentumTier,
-              cluesRevealed: controller.lastCluesRevealed,
-              clueMultiplier: controller.lastClueMultiplier,
-              removeOneUsed: controller.lastRemoveOneUsed,
-              doubleDownChoice: controller.lastDoubleDownChoice,
-              doubleDownMultiplier: controller.lastDoubleDownMultiplier,
             ),
-          ),
-        if (controller.awaitingDoubleDownChoice)
-          Positioned.fill(
-            child: DoubleDownOverlay(
-              streak: controller.streak,
-              isChoosing: controller.isChoosingDoubleDown,
-              onChoose: controller.chooseDoubleDown,
+          if (controller.awaitingDoubleDownChoice)
+            Positioned.fill(
+              child: DoubleDownOverlay(
+                streak: controller.streak,
+                isChoosing: controller.isChoosingDoubleDown,
+                onChoose: controller.chooseDoubleDown,
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -262,13 +337,25 @@ class _StreakChip extends StatelessWidget {
         color: active ? null : Colors.white.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(999),
         boxShadow: milestone
-            ? [BoxShadow(color: AppColors.streakGradA.withValues(alpha: 0.6), blurRadius: 10, spreadRadius: 0.5)]
+            ? [
+                BoxShadow(
+                  color: AppColors.streakGradA.withValues(alpha: 0.6),
+                  blurRadius: 10,
+                  spreadRadius: 0.5,
+                ),
+              ]
             : null,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('🔥', style: TextStyle(fontSize: 13, color: active ? null : Colors.white.withValues(alpha: 0.5))),
+          Text(
+            '🔥',
+            style: TextStyle(
+              fontSize: 13,
+              color: active ? null : Colors.white.withValues(alpha: 0.5),
+            ),
+          ),
           const SizedBox(width: 4),
           // Re-keyed on every streak change so the pop-in restarts from scratch
           // instead of tweening from the old value — a quick "beat" per streak tick.
@@ -277,13 +364,16 @@ class _StreakChip extends StatelessWidget {
             tween: Tween(begin: milestone ? 1.6 : 1.25, end: 1.0),
             duration: const Duration(milliseconds: 280),
             curve: Curves.easeOut,
-            builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+            builder: (context, scale, child) =>
+                Transform.scale(scale: scale, child: child),
             child: Text(
               '$streak',
               style: AppFonts.inter(
                 size: 13,
                 weight: FontWeight.w800,
-                color: active ? Colors.white : Colors.white.withValues(alpha: 0.6),
+                color: active
+                    ? Colors.white
+                    : Colors.white.withValues(alpha: 0.6),
               ),
             ),
           ),
@@ -311,7 +401,14 @@ class _RiskyBadge extends StatelessWidget {
         children: [
           const Text('🔥', style: TextStyle(fontSize: 12)),
           const SizedBox(width: 4),
-          Text('RISKY', style: AppFonts.inter(size: 11, weight: FontWeight.w800, color: Colors.white)),
+          Text(
+            'RISKY',
+            style: AppFonts.inter(
+              size: 11,
+              weight: FontWeight.w800,
+              color: Colors.white,
+            ),
+          ),
         ],
       ),
     );
@@ -328,11 +425,14 @@ class _RemoveOneButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final usable = !controller.answered &&
+    final usable =
+        !controller.answered &&
         !controller.isUsingRemoveOne &&
         controller.removeOneUsesRemaining > 0 &&
         controller.removedOptionIndex == null;
-    final visible = controller.removeOneUsesRemaining > 0 || controller.removedOptionIndex != null;
+    final visible =
+        controller.removeOneUsesRemaining > 0 ||
+        controller.removedOptionIndex != null;
     if (!visible) return const SizedBox.shrink();
 
     return Material(
@@ -353,17 +453,28 @@ class _RemoveOneButton extends StatelessWidget {
                 const SizedBox(
                   width: 12,
                   height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               else
-                Text('🚫', style: TextStyle(fontSize: 13, color: usable ? null : Colors.white.withValues(alpha: 0.5))),
+                Text(
+                  '🚫',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: usable ? null : Colors.white.withValues(alpha: 0.5),
+                  ),
+                ),
               const SizedBox(width: 5),
               Text(
                 '${controller.removeOneUsesRemaining}',
                 style: AppFonts.inter(
                   size: 12,
                   weight: FontWeight.w800,
-                  color: usable ? Colors.white : Colors.white.withValues(alpha: 0.6),
+                  color: usable
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.6),
                 ),
               ),
             ],
@@ -406,14 +517,23 @@ class _QuestionBody extends StatelessWidget {
             color: AppColors.cardWhite,
             borderRadius: BorderRadius.circular(22),
             boxShadow: const [
-              BoxShadow(color: Color(0x26000000), blurRadius: 24, offset: Offset(0, 10)),
+              BoxShadow(
+                color: Color(0x26000000),
+                blurRadius: 24,
+                offset: Offset(0, 10),
+              ),
             ],
           ),
           alignment: Alignment.center,
           child: Text(
             q.prompt ?? '',
             textAlign: TextAlign.center,
-            style: AppFonts.baloo(size: 21, weight: FontWeight.w700, color: AppColors.darkText, height: 1.3),
+            style: AppFonts.baloo(
+              size: 21,
+              weight: FontWeight.w700,
+              color: AppColors.darkText,
+              height: 1.3,
+            ),
           ),
         );
       case QuestionType.emoji:
@@ -425,7 +545,11 @@ class _QuestionBody extends StatelessWidget {
             color: AppColors.cardWhite,
             borderRadius: BorderRadius.circular(22),
             boxShadow: const [
-              BoxShadow(color: Color(0x26000000), blurRadius: 24, offset: Offset(0, 10)),
+              BoxShadow(
+                color: Color(0x26000000),
+                blurRadius: 24,
+                offset: Offset(0, 10),
+              ),
             ],
           ),
           alignment: Alignment.center,
