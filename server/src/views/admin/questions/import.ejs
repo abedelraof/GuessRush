@@ -46,6 +46,48 @@
         </ul>
       </div>
 
+      <div class="card p-6 mb-6">
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="field-label mb-0">🤖 AI prompt <span class="font-normal text-slate-400">(copy into ChatGPT, Claude, etc.)</span></label>
+          <button type="button" id="copy-prompt-btn" class="btn-secondary py-1.5 px-3 text-xs">Copy prompt</button>
+        </div>
+        <pre id="ai-prompt-block" class="rounded-lg bg-slate-900 text-slate-100 text-xs p-4 overflow-x-auto whitespace-pre-wrap">You are generating quiz questions for a trivia app, to be bulk-imported via JSON.
+
+Generate [NUMBER] quiz questions about "[TOPIC]".
+
+Output ONLY a single valid JSON object matching the shape below — no markdown code fences, no commentary before or after it, no trailing commas, no comments. It must be parseable by a strict JSON.parse().
+
+{
+  "questions": [
+    {
+      "category": "<one of: <%= categories.map(c => c.key_slug).join(', ') %>>",
+      "type": "<one of: image, audio, video, text, emoji, progressive>",
+      "difficulty": "<one of: easy, medium, hard, extreme>",
+      "label": "<short ALL-CAPS section title, e.g. 'READ & ANSWER', max 64 characters>",
+      "prompt": "<the question text shown to the player, max 255 characters>",
+      "instruct_text": "<optional tone/style hint for text-to-speech narration, or an empty string>",
+      "media_placeholder": "<only when type is 'image': a short description of the image to show, otherwise an empty string>",
+      "media_duration": "<only when type is 'audio' or 'video': clip length like '0:12', otherwise an empty string>",
+      "emojis": "<only when type is 'emoji': 3-5 emoji that encode the answer, otherwise an empty string>",
+      "options": ["<exactly 4 answer choices as strings, only one of which is correct>"],
+      "correct_index": <integer 0-3, the index into "options" of the correct answer>,
+      "clues": ["<only when type is 'progressive': 3-6 clues ordered from vague to obvious, otherwise an empty array>"],
+      "timer_seconds": <integer seconds to answer, or 0 for untimed>
+    }
+  ]
+}
+
+Rules:
+- "category" must be exactly one of the slugs listed above (case-insensitive) — do not invent new categories.
+- "options" must have EXACTLY 4 entries, all non-empty and plausible, with only one correct.
+- "correct_index" must point at the correct entry in "options" (0-based).
+- Only fill "clues" when "type" is "progressive"; leave it as [] otherwise.
+- Only fill "media_placeholder" when "type" is "image"; only fill "media_duration" when "type" is "audio" or "video"; only fill "emojis" when "type" is "emoji". Leave the others as empty strings "".
+- Vary "difficulty" and "type" across the batch instead of repeating the same ones for every question.
+- Do not repeat the same question, phrasing, or answer twice within the batch.
+- Return raw JSON only — no ```json fences, no leading/trailing text.</pre>
+      </div>
+
       <div class="card p-6">
         <form method="post" action="/admin/questions/import" class="space-y-5" id="import-form">
           <input type="hidden" name="payload" id="payload-field">
@@ -61,6 +103,16 @@
   </div>
 
   <script>
+    var copyBtn = document.getElementById('copy-prompt-btn');
+    copyBtn.addEventListener('click', function () {
+      var text = document.getElementById('ai-prompt-block').innerText;
+      navigator.clipboard.writeText(text).then(function () {
+        var original = copyBtn.textContent;
+        copyBtn.textContent = 'Copied!';
+        setTimeout(function () { copyBtn.textContent = original; }, 1500);
+      });
+    });
+
     var form = document.getElementById('import-form');
     var fileInput = document.getElementById('json-file-input');
     var payloadField = document.getElementById('payload-field');

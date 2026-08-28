@@ -551,8 +551,9 @@ async function generateConfirm(req, res) {
 
 // ---- Bulk JSON import ----
 
-function importForm(req, res) {
-  res.render('admin/questions/import', { admin: req.admin, error: null });
+async function importForm(req, res) {
+  const [categories] = await pool.query('SELECT * FROM categories ORDER BY name');
+  res.render('admin/questions/import', { admin: req.admin, categories, error: null });
 }
 
 async function importPreview(req, res) {
@@ -565,6 +566,7 @@ async function importPreview(req, res) {
   } catch (err) {
     return res.status(400).render('admin/questions/import', {
       admin: req.admin,
+      categories,
       error: 'That file is not valid JSON.',
     });
   }
@@ -578,6 +580,7 @@ async function importPreview(req, res) {
   if (!rawQuestions || rawQuestions.length === 0) {
     return res.status(400).render('admin/questions/import', {
       admin: req.admin,
+      categories,
       error: 'Expected a JSON object with a "questions" array containing at least one question.',
     });
   }
