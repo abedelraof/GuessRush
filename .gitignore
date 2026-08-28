@@ -3,7 +3,8 @@
 *.log
 *.pyc
 *.swp
-.claude/
+.claude/*
+!.claude/skills/
 .DS_Store
 .atom/
 .build/
