@@ -1,11 +1,46 @@
 import '../models/category.dart';
 import '../models/daily_rush_status.dart';
+import '../models/game_mode.dart';
 import '../models/home_summary.dart';
 import '../models/leaderboard.dart';
+import '../models/match.dart';
 import '../models/mission.dart';
 import '../models/player_profile.dart';
 import '../models/question.dart';
 import 'api_client.dart';
+
+/// POST /api/matches/queue's immediate response when it pairs the caller
+/// with someone already waiting — same shape as MatchPairedEvent (the push
+/// version of this same moment), but without match_id being redundant with
+/// the type-level context here.
+class QueueJoinResult {
+  final String status; // 'waiting' | 'matched'
+  final int? matchId;
+  final int? sessionId;
+  final List<Question>? questions;
+  final int? removeOneUsesRemaining;
+  final MatchOpponent? opponent;
+
+  const QueueJoinResult({
+    required this.status,
+    this.matchId,
+    this.sessionId,
+    this.questions,
+    this.removeOneUsesRemaining,
+    this.opponent,
+  });
+
+  factory QueueJoinResult.fromJson(Map<String, dynamic> json) => QueueJoinResult(
+    status: json['status'] as String,
+    matchId: json['match_id'] as int?,
+    sessionId: json['session_id'] as int?,
+    questions: json['questions'] != null
+        ? (json['questions'] as List).map((q) => Question.fromJson(q as Map<String, dynamic>)).toList()
+        : null,
+    removeOneUsesRemaining: json['remove_one_uses_remaining'] as int?,
+    opponent: json['opponent'] != null ? MatchOpponent.fromJson(json['opponent'] as Map<String, dynamic>) : null,
+  );
+}
 
 class SessionStart {
   final int sessionId;
@@ -331,6 +366,21 @@ class QuizApi {
     );
   }
 
+  /// Starts a Pick Your Rush session for [mode] (Quick/Chaos/Streak/Chill) — the
+  /// game-mode counterpart to createSession/startDailyRush. Question selection is
+  /// cross-category on the server; the client never picks or sees a category here.
+  Future<SessionStart> startRush(GameMode mode) async {
+    final res = await _api.post('/api/rush/start', {'mode': mode.apiValue});
+    final questions = (res['questions'] as List)
+        .map((q) => Question.fromJson(q as Map<String, dynamic>))
+        .toList();
+    return SessionStart(
+      sessionId: res['session_id'] as int,
+      questions: questions,
+      removeOneUsesRemaining: res['remove_one_uses_remaining'] as int? ?? 1,
+    );
+  }
+
   /// Reveals the next clue of the current progressive question. Server-persisted
   /// and reflected in the score the next /answers call reports — the client never
   /// decides the clue-based multiplier itself.
@@ -368,5 +418,41 @@ class QuizApi {
     final query = params.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&');
     final res = await _api.get('/api/leaderboard?$query');
     return LeaderboardPage.fromJson(res);
+  }
+
+  // ---- Play With Friends ----
+
+  /// Joins the random 1v1 queue. Pairs immediately (status 'matched', with
+  /// everything needed to start playing right in this response) if someone
+  /// else is already waiting; otherwise 'waiting' — the pairing then arrives
+  /// later as a MatchPairedEvent over MatchSocketService.
+  Future<QueueJoinResult> joinRandomQueue() async {
+    final res = await _api.post('/api/matches/queue');
+    return QueueJoinResult.fromJson(res);
+  }
+
+  /// Leaves the random queue (backed out of the waiting screen).
+  Future<void> leaveQueue() async {
+    await _api.delete('/api/matches/queue');
+  }
+
+  /// Creates a friend-invite match and returns its short shareable code.
+  Future<String> createFriendMatch() async {
+    final res = await _api.post('/api/matches/friend');
+    return res['invite_code'] as String;
+  }
+
+  /// Joins a friend's match by their invite code — pairs immediately, same
+  /// response shape as joinRandomQueue's 'matched' case.
+  Future<QueueJoinResult> joinFriendMatch(String code) async {
+    final res = await _api.post('/api/matches/friend/$code/join');
+    return QueueJoinResult.fromJson(res);
+  }
+
+  /// Poll fallback for a match's status/result — used if the socket
+  /// connection was missed or dropped (e.g. the app was backgrounded).
+  Future<MatchStatusResult> getMatch(int matchId) async {
+    final res = await _api.get('/api/matches/$matchId');
+    return MatchStatusResult.fromJson(res);
   }
 }

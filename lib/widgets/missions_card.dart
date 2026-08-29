@@ -18,18 +18,37 @@ class MissionsCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(18),
+        color: AppColors.cardWhite,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x26000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('🎯 TODAY\'S MISSIONS', style: AppFonts.inter(size: 12, weight: FontWeight.w800, letterSpacing: 0.4)),
+          Text(
+            '🎯 TODAY\'S MISSIONS',
+            style: AppFonts.inter(
+              size: 12,
+              weight: FontWeight.w800,
+              letterSpacing: 0.4,
+              color: AppColors.darkText,
+            ),
+          ),
           const SizedBox(height: 10),
           if (list == null)
             Text(
               'Loading missions…',
-              style: AppFonts.inter(size: 12, weight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.75)),
+              style: AppFonts.inter(
+                size: 12,
+                weight: FontWeight.w700,
+                color: AppColors.mutedText,
+              ),
             )
           else
             for (var i = 0; i < list.length; i++) ...[
@@ -52,7 +71,10 @@ class _MissionRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(mission.completed ? '✅' : '🎯', style: const TextStyle(fontSize: 16)),
+        Text(
+          mission.completed ? '✅' : '🎯',
+          style: const TextStyle(fontSize: 16),
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -63,7 +85,9 @@ class _MissionRow extends StatelessWidget {
                 style: AppFonts.inter(
                   size: 12,
                   weight: FontWeight.w700,
-                  color: mission.completed ? Colors.white.withValues(alpha: 0.65) : Colors.white,
+                  color: mission.completed
+                      ? AppColors.mutedText
+                      : AppColors.darkText,
                 ),
               ),
               const SizedBox(height: 4),
@@ -71,14 +95,19 @@ class _MissionRow extends StatelessWidget {
                 borderRadius: BorderRadius.circular(999),
                 child: Container(
                   height: 6,
-                  color: Colors.white.withValues(alpha: 0.2),
+                  color: AppColors.disabledBg,
                   alignment: Alignment.centerLeft,
                   child: TweenAnimationBuilder<double>(
                     tween: Tween(begin: 0, end: mission.progressFraction),
                     duration: const Duration(milliseconds: 500),
                     curve: Curves.easeOut,
-                    builder: (context, factor, child) => FractionallySizedBox(widthFactor: factor, child: child),
-                    child: Container(color: mission.completed ? AppColors.correctBorder : AppColors.goldTimer),
+                    builder: (context, factor, child) =>
+                        FractionallySizedBox(widthFactor: factor, child: child),
+                    child: Container(
+                      color: mission.completed
+                          ? AppColors.correctBorder
+                          : AppColors.goldTimer,
+                    ),
                   ),
                 ),
               ),
@@ -88,7 +117,11 @@ class _MissionRow extends StatelessWidget {
         const SizedBox(width: 10),
         Text(
           '+${mission.rewardXp} XP',
-          style: AppFonts.inter(size: 11, weight: FontWeight.w800, color: Colors.white.withValues(alpha: 0.85)),
+          style: AppFonts.inter(
+            size: 11,
+            weight: FontWeight.w800,
+            color: AppColors.darkText,
+          ),
         ),
       ],
     );

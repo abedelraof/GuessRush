@@ -17,70 +17,63 @@ class HomeScreen extends StatelessWidget {
     final level = controller.profile?.level;
     final trophyScore = controller.profile?.records.bestRushScore ?? 0;
 
-    return Container(
-      decoration: const BoxDecoration(
-        image: DecorationImage(
-          image: AssetImage('assets/images/background.png'),
-          fit: BoxFit.cover,
-        ),
-      ),
-      child: SafeArea(
-        // Three rows: header and footer are each sized to their own
-        // content (fixed); the middle row is wrapped in Expanded so it
-        // gets whatever space is left over.
-        child: Column(
-          children: [
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
-                child: Column(
-                  children: [
-                    // --- ROW 1: header — fixed height (its own content). ---
-                    _TopBar(
-                      controller: controller,
-                      name: name,
-                      initial: initial,
-                      level: level,
-                      trophyScore: trophyScore,
+    // No longer paints its own background image — QuizAppShell now uses
+    // this same background.png as the app-wide default, so Home just
+    // inherits it.
+    return SafeArea(
+      // Three rows: header and footer are each sized to their own
+      // content (fixed); the middle row is wrapped in Expanded so it
+      // gets whatever space is left over.
+      child: Column(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              child: Column(
+                children: [
+                  // --- ROW 1: header — fixed height (its own content). ---
+                  _TopBar(
+                    controller: controller,
+                    name: name,
+                    initial: initial,
+                    level: level,
+                    trophyScore: trophyScore,
+                  ),
+                  // --- ROW 2: logo + buttons — gets the rest of the
+                  // space (Expanded, above). It has two rows of its own:
+                  // the logo (Expanded — gets whatever room is left
+                  // after the buttons below take theirs) and the
+                  // buttons (sized to their own content, not flexible).
+                  // A plain Column needs a bounded height to do this —
+                  // that's what ruled out the old SingleChildScrollView
+                  // here; a scrollable child is handed unbounded height,
+                  // which is incompatible with an Expanded child asking
+                  // for "whatever's left".
+                  Expanded(
+                    child: Column(
+                      children: [
+                        Expanded(child: _Logo()),
+                        const _Tagline(),
+                        const SizedBox(height: 22),
+                        GuessRushPlayButton(onPressed: controller.playNow),
+                        const SizedBox(height: 14),
+                        _PlayWithFriendsButton(onTap: controller.goToPlayWithFriends),
+                        const SizedBox(height: 14),
+                        _IconGrid(onTapLeaderboard: controller.goToLeaderboard),
+                        const SizedBox(height: 16),
+                      ],
                     ),
-                    // --- ROW 2: logo + buttons — gets the rest of the
-                    // space (Expanded, above). It has two rows of its own:
-                    // the logo (Expanded — gets whatever room is left
-                    // after the buttons below take theirs) and the
-                    // buttons (sized to their own content, not flexible).
-                    // A plain Column needs a bounded height to do this —
-                    // that's what ruled out the old SingleChildScrollView
-                    // here; a scrollable child is handed unbounded height,
-                    // which is incompatible with an Expanded child asking
-                    // for "whatever's left".
-                    Expanded(
-                      child: Column(
-                        children: [
-                          Expanded(child: _Logo()),
-                          const _Tagline(),
-                          const SizedBox(height: 22),
-                          GuessRushPlayButton(onPressed: controller.playNow),
-                          const SizedBox(height: 14),
-                          const _PlayWithFriendsButton(),
-                          const SizedBox(height: 14),
-                          _IconGrid(
-                            onTapLeaderboard: controller.goToLeaderboard,
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            // --- ROW 3: footer — fixed height (its own content). ---
-            _BottomNav(
-              onTapEvents: controller.goToEvents,
-              onTapStats: controller.goToProfile,
-            ),
-          ],
-        ),
+          ),
+          // --- ROW 3: footer — fixed height (its own content). ---
+          _BottomNav(
+            onTapEvents: controller.goToEvents,
+            onTapStats: controller.goToProfile,
+          ),
+        ],
       ),
     );
   }
@@ -357,7 +350,9 @@ class _Tagline extends StatelessWidget {
 /// instead of the plain frosted-glass look it had before, so it reads as
 /// part of the same button family rather than a one-off.
 class _PlayWithFriendsButton extends StatelessWidget {
-  const _PlayWithFriendsButton();
+  final VoidCallback onTap;
+
+  const _PlayWithFriendsButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -366,6 +361,7 @@ class _PlayWithFriendsButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
         child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 14),

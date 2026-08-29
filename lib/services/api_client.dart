@@ -31,6 +31,9 @@ class ApiClient {
   /// returned by the API as root-relative URLs (e.g. "/public/audio/5.flac").
   static String get baseUrl => _baseUrl;
 
+  /// Same origin as [baseUrl], just as a ws(s):// URL — for MatchSocketService.
+  static String get wsBaseUrl => _baseUrl.replaceFirst(RegExp(r'^http'), 'ws');
+
   static const _tokenKey = 'auth_token';
   String? _cachedToken;
 
@@ -67,6 +70,11 @@ class ApiClient {
       headers: await _headers(),
       body: body != null ? jsonEncode(body) : null,
     );
+    return _decode(res);
+  }
+
+  Future<Map<String, dynamic>> delete(String path) async {
+    final res = await http.delete(Uri.parse('$_baseUrl$path'), headers: await _headers());
     return _decode(res);
   }
 

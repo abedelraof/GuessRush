@@ -194,20 +194,33 @@ class _StatChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        color: AppColors.cardWhite,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x26000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(value, style: AppFonts.inter(size: 15, weight: FontWeight.w800)),
+          Text(
+            value,
+            style: AppFonts.inter(
+              size: 15,
+              weight: FontWeight.w800,
+              color: AppColors.darkText,
+            ),
+          ),
           Text(
             label,
             style: AppFonts.inter(
               size: 9,
               weight: FontWeight.w700,
-              color: Colors.white.withValues(alpha: 0.75),
+              color: AppColors.mutedText,
             ),
           ),
         ],

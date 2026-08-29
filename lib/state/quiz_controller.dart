@@ -5,8 +5,10 @@ import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../models/category.dart';
 import '../models/daily_rush_status.dart';
+import '../models/game_mode.dart';
 import '../models/home_summary.dart';
 import '../models/leaderboard.dart';
+import '../models/match.dart';
 import '../models/mission.dart';
 import '../models/player.dart';
 import '../models/player_profile.dart';
@@ -14,6 +16,7 @@ import '../models/question.dart';
 import '../services/api_client.dart';
 import '../services/audio_player_service.dart';
 import '../services/auth_service.dart';
+import '../services/match_socket_service.dart';
 import '../services/quiz_api.dart';
 
 enum AppScreen {
@@ -21,13 +24,19 @@ enum AppScreen {
   login,
   signup,
   home,
-  categories,
+  pickRush,
+  playWithFriends,
+  matchWaiting,
   game,
   results,
   profile,
   leaderboard,
   events,
 }
+
+/// Which sub-flow matchWaitingScreen is showing — set by whichever
+/// controller method navigated there.
+enum MatchFlowKind { random, friend }
 
 enum AnswerFeedback { none, correct, wrong, timeout }
 
@@ -70,12 +79,19 @@ double clueMultiplierHintFor(int cluesRevealed) {
 }
 
 class QuizController extends ChangeNotifier {
-  QuizController({AuthService? authService, QuizApi? quizApi})
+  QuizController({AuthService? authService, QuizApi? quizApi, Stream<MatchEvent>? matchEvents})
     : authService = authService ?? AuthService(ApiClient.instance),
-      quizApi = quizApi ?? QuizApi(ApiClient.instance);
+      quizApi = quizApi ?? QuizApi(ApiClient.instance),
+      _matchEvents = matchEvents ?? MatchSocketService.instance.events,
+      // Only the real MatchSocketService singleton actually needs connecting/
+      // disconnecting — a test-injected stream is already "live" on its own,
+      // and must never touch the real singleton's state.
+      _usesRealMatchSocket = matchEvents == null;
 
   final AuthService authService;
   final QuizApi quizApi;
+  final Stream<MatchEvent> _matchEvents;
+  final bool _usesRealMatchSocket;
 
   AppScreen screen = AppScreen.boot;
 
@@ -84,9 +100,12 @@ class QuizController extends ChangeNotifier {
   bool authLoading = false;
   String? authError;
 
-  // Categories / session
+  // Categories / session. Categories stay internal (used server-side to keep a Pick Your
+  // Rush session varied) — `selectCategory`/`categories` have no UI entry point anymore,
+  // but stay wired up for anything that still starts a Rush by category directly.
   List<Category> categories = [];
   Category? _lastCategory;
+  GameMode? _lastMode;
   int? sessionId;
   List<Question> questions = [];
   bool isCreatingSession = false;
@@ -190,6 +209,27 @@ class QuizController extends ChangeNotifier {
   double lastStreakMultiplier = 1.0;
   int lastStreakBeforeAnswer = 0;
   bool lastIsMilestone = false;
+
+  // Server-authoritative "is the Rush over" signal from the last answer. For every
+  // fixed-length mode this always agrees with qIndex reaching the end of `questions`,
+  // but Streak Rush can end early (on the first miss) while `questions` still has more
+  // entries left — _nextQuestion checks this rather than only the length comparison.
+  bool lastRushComplete = false;
+
+  // Play With Friends (1v1 matches). `activeMatchId` is the one flag everything
+  // else here hangs off — null for an ordinary solo/Daily Rush, so none of this
+  // affects normal play. A match's own gameplay is otherwise an entirely
+  // ordinary Rush session (see _beginMatch) — this is purely the presentational
+  // layer on top: opponent identity/progress and the eventual head-to-head result.
+  int? activeMatchId;
+  MatchOpponent? opponent;
+  int opponentQuestionIndex = 0;
+  MatchFlowKind matchFlowKind = MatchFlowKind.random;
+  bool isSearchingMatch = false;
+  String? friendInviteCode;
+  String? matchError;
+  MatchResultEvent? matchResult;
+  StreamSubscription<MatchEvent>? _matchEventsSub;
 
   Timer? _timer;
   Timer? _advanceDelay;
@@ -448,6 +488,7 @@ class QuizController extends ChangeNotifier {
           ? speedLabelFor(result.speedMultiplier, hasTimer: hasTimer)
           : '';
       lastIsMilestone = result.isCorrect && kStreakMilestones.contains(streak);
+      lastRushComplete = result.rushComplete;
       _applyMomentum(
         isCorrect: result.isCorrect,
         timedOut: result.timedOut,
@@ -519,7 +560,7 @@ class QuizController extends ChangeNotifier {
 
   void _nextQuestion() {
     final next = qIndex + 1;
-    if (next >= questions.length) {
+    if (lastRushComplete || next >= questions.length) {
       _finishSession();
     } else {
       qIndex = next;
@@ -609,8 +650,186 @@ class QuizController extends ChangeNotifier {
   }
 
   void playNow() {
-    screen = AppScreen.categories;
+    screen = AppScreen.pickRush;
     notifyListeners();
+  }
+
+  // ---- Play With Friends ----
+
+  void goToPlayWithFriends() {
+    matchError = null;
+    screen = AppScreen.playWithFriends;
+    notifyListeners();
+    _connectMatchSocket();
+  }
+
+  void _connectMatchSocket() {
+    _matchEventsSub ??= _matchEvents.listen(_onMatchEvent);
+    if (_usesRealMatchSocket) MatchSocketService.instance.connect();
+  }
+
+  /// Leaves the whole Play With Friends flow — the queue (if in it), the
+  /// socket connection, and any in-progress friend-invite state. Safe to
+  /// call even if none of that was active (e.g. backing out of the mode-select
+  /// screen itself, before ever queueing).
+  void _leavePlayWithFriends() {
+    if (isSearchingMatch) {
+      quizApi.leaveQueue().catchError((_) {}); // best-effort — leaving anyway
+    }
+    isSearchingMatch = false;
+    friendInviteCode = null;
+    matchError = null;
+    _matchEventsSub?.cancel();
+    _matchEventsSub = null;
+    if (_usesRealMatchSocket) MatchSocketService.instance.disconnect();
+  }
+
+  void backFromPlayWithFriends() {
+    _leavePlayWithFriends();
+    screen = AppScreen.home;
+    notifyListeners();
+  }
+
+  /// Joins the random 1v1 queue. Pairs immediately if someone else is
+  /// already waiting; otherwise shows the searching state until a
+  /// MatchPairedEvent arrives over the socket (or the queue times out).
+  Future<void> startRandomQueue() async {
+    matchFlowKind = MatchFlowKind.random;
+    matchError = null;
+    isSearchingMatch = true;
+    screen = AppScreen.matchWaiting;
+    notifyListeners();
+    try {
+      final result = await quizApi.joinRandomQueue();
+      if (result.status == 'matched') {
+        _beginMatch(
+          matchId: result.matchId!,
+          sessionId: result.sessionId!,
+          questions: result.questions!,
+          removeOneUsesRemaining: result.removeOneUsesRemaining ?? 1,
+          opponentInfo: result.opponent!,
+        );
+      }
+      // status == 'waiting': stay on the searching screen; _onMatchEvent
+      // handles the eventual match:paired push.
+    } on ApiException catch (e) {
+      isSearchingMatch = false;
+      matchError = e.message;
+      notifyListeners();
+    }
+  }
+
+  Future<void> cancelQueue() async {
+    isSearchingMatch = false;
+    screen = AppScreen.playWithFriends;
+    notifyListeners();
+    try {
+      await quizApi.leaveQueue();
+    } on ApiException {
+      // Non-fatal — worst case the server evicts us on its own queue timeout.
+    }
+  }
+
+  /// Shows the friend-invite screen (create a code, or enter one). No
+  /// network call yet — that happens on createFriendInvite/joinFriendMatch.
+  void goToFriendMatch() {
+    matchFlowKind = MatchFlowKind.friend;
+    matchError = null;
+    friendInviteCode = null;
+    screen = AppScreen.matchWaiting;
+    notifyListeners();
+  }
+
+  Future<void> createFriendInvite() async {
+    matchError = null;
+    notifyListeners();
+    try {
+      friendInviteCode = await quizApi.createFriendMatch();
+      notifyListeners();
+    } on ApiException catch (e) {
+      matchError = e.message;
+      notifyListeners();
+    }
+  }
+
+  Future<void> joinFriendMatch(String code) async {
+    matchError = null;
+    notifyListeners();
+    try {
+      final result = await quizApi.joinFriendMatch(code);
+      _beginMatch(
+        matchId: result.matchId!,
+        sessionId: result.sessionId!,
+        questions: result.questions!,
+        removeOneUsesRemaining: result.removeOneUsesRemaining ?? 1,
+        opponentInfo: result.opponent!,
+      );
+    } on ApiException catch (e) {
+      matchError = e.message;
+      notifyListeners();
+    }
+  }
+
+  void _onMatchEvent(MatchEvent event) {
+    switch (event) {
+      case MatchPairedEvent e:
+        // A no-op if this side already began the match via its own REST response
+        // (the player whose request completed the pairing gets both).
+        if (activeMatchId != null) return;
+        _beginMatch(
+          matchId: e.matchId,
+          sessionId: e.sessionId,
+          questions: e.questions,
+          removeOneUsesRemaining: e.removeOneUsesRemaining,
+          opponentInfo: e.opponent,
+        );
+      case MatchOpponentProgressEvent e:
+        if (e.matchId != activeMatchId) return;
+        opponentQuestionIndex = e.currentIndex;
+        notifyListeners();
+      case MatchResultEvent e:
+        if (e.matchId != activeMatchId) return;
+        matchResult = e;
+        notifyListeners();
+      case MatchCancelledEvent e:
+        if (e.matchId != activeMatchId && screen != AppScreen.matchWaiting) return;
+        isSearchingMatch = false;
+        matchError = 'Your opponent left before the match started.';
+        screen = AppScreen.playWithFriends;
+        notifyListeners();
+      case QueueTimeoutEvent():
+        isSearchingMatch = false;
+        matchError = "Couldn't find an opponent right now — try again in a bit.";
+        screen = AppScreen.playWithFriends;
+        notifyListeners();
+      case UnknownMatchEvent():
+        break; // forward-compatible no-op for an event type this build doesn't know yet
+    }
+  }
+
+  /// Shared by both ways a match can start (random pairing or a friend
+  /// invite) and by both ways the *client* can learn about it (the direct
+  /// REST response, or the socket push) — feeds straight into the same
+  /// _beginRush every solo/Daily Rush uses. A match session is an ordinary
+  /// Rush session under the hood; this only sets up the presentational layer
+  /// on top (opponent identity, live progress, eventual result).
+  void _beginMatch({
+    required int matchId,
+    required int sessionId,
+    required List<Question> questions,
+    required int removeOneUsesRemaining,
+    required MatchOpponent opponentInfo,
+  }) {
+    activeMatchId = matchId;
+    opponent = opponentInfo;
+    opponentQuestionIndex = 0;
+    matchResult = null;
+    isSearchingMatch = false;
+    friendInviteCode = null;
+    _beginRush(
+      SessionStart(sessionId: sessionId, questions: questions, removeOneUsesRemaining: removeOneUsesRemaining),
+      isDaily: false,
+    );
   }
 
   Future<void> loadProfile() async {
@@ -679,6 +898,10 @@ class QuizController extends ChangeNotifier {
     AudioPlayerService.instance.stop();
     sessionId = null;
     questions = [];
+    if (activeMatchId != null) _leavePlayWithFriends();
+    activeMatchId = null;
+    opponent = null;
+    matchResult = null;
     screen = AppScreen.home;
     notifyListeners();
   }
@@ -714,6 +937,7 @@ class QuizController extends ChangeNotifier {
     lastSpeedLabel = '';
     lastStreakBeforeAnswer = 0;
     lastIsMilestone = false;
+    lastRushComplete = false;
     removeOneUsesRemaining = start.removeOneUsesRemaining;
     removedOptionIndex = null;
     pendingDoubleDownOffer = null;
@@ -749,6 +973,25 @@ class QuizController extends ChangeNotifier {
     }
   }
 
+  /// Starts a Pick Your Rush session for [mode] — the game-mode counterpart to
+  /// selectCategory, and the only way a Rush is started from the "Pick Your Rush"
+  /// screen. Question selection is cross-category on the server; this never asks
+  /// the player about categories at all.
+  Future<void> startRush(GameMode mode) async {
+    _lastMode = mode;
+    errorMessage = null;
+    isCreatingSession = true;
+    notifyListeners();
+    try {
+      final start = await quizApi.startRush(mode);
+      _beginRush(start, isDaily: false);
+    } on ApiException catch (e) {
+      isCreatingSession = false;
+      errorMessage = e.message;
+      notifyListeners();
+    }
+  }
+
   /// Starts today's Daily Rush, or resumes it if there's an unfinished attempt
   /// from earlier today (see QuizApi.startDailyRush). Rejected by the server
   /// (surfaced via errorMessage) if today's attempt is already completed —
@@ -768,6 +1011,11 @@ class QuizController extends ChangeNotifier {
   }
 
   void playAgain() {
+    final mode = _lastMode;
+    if (mode != null) {
+      startRush(mode);
+      return;
+    }
     final cat = _lastCategory;
     if (cat != null) selectCategory(cat);
   }
@@ -840,6 +1088,8 @@ class QuizController extends ChangeNotifier {
   void dispose() {
     _clearAllTimers();
     AudioPlayerService.instance.stop();
+    _matchEventsSub?.cancel();
+    if (_usesRealMatchSocket) MatchSocketService.instance.disconnect();
     super.dispose();
   }
 }

@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 
 import '../state/quiz_controller.dart';
-import 'categories_screen.dart';
 import 'events_screen.dart';
 import 'game_screen.dart';
 import 'home_screen.dart';
 import 'leaderboard_screen.dart';
 import 'login_screen.dart';
+import 'match_waiting_screen.dart';
+import 'pick_rush_screen.dart';
+import 'play_with_friends_screen.dart';
 import 'profile_screen.dart';
 import 'results_screen.dart';
 import 'signup_screen.dart';
@@ -64,9 +66,19 @@ class _QuizAppShellState extends State<QuizAppShell> {
         );
       case AppScreen.home:
         return HomeScreen(key: const ValueKey('home'), controller: controller);
-      case AppScreen.categories:
-        return CategoriesScreen(
-          key: const ValueKey('categories'),
+      case AppScreen.pickRush:
+        return PickRushScreen(
+          key: const ValueKey('pick-rush'),
+          controller: controller,
+        );
+      case AppScreen.playWithFriends:
+        return PlayWithFriendsScreen(
+          key: const ValueKey('play-with-friends'),
+          controller: controller,
+        );
+      case AppScreen.matchWaiting:
+        return MatchWaitingScreen(
+          key: const ValueKey('match-waiting'),
           controller: controller,
         );
       case AppScreen.game:
@@ -102,7 +114,7 @@ class _QuizAppShellState extends State<QuizAppShell> {
     return Container(
       decoration: const BoxDecoration(
         image: DecorationImage(
-          image: AssetImage('assets/images/app_background.png'),
+          image: AssetImage('assets/images/background.png'),
           fit: BoxFit.cover,
         ),
       ),

@@ -29,7 +29,11 @@ class LeaderboardScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     alignment: Alignment.center,
-                    child: const Icon(Icons.arrow_back, size: 18, color: Colors.white),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -41,9 +45,21 @@ class LeaderboardScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
             child: Row(
               children: [
-                Expanded(child: _PeriodTab(label: 'GLOBAL', period: LeaderboardPeriod.global, controller: controller)),
+                Expanded(
+                  child: _PeriodTab(
+                    label: 'GLOBAL',
+                    period: LeaderboardPeriod.global,
+                    controller: controller,
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: _PeriodTab(label: 'DAILY', period: LeaderboardPeriod.daily, controller: controller)),
+                Expanded(
+                  child: _PeriodTab(
+                    label: 'DAILY',
+                    period: LeaderboardPeriod.daily,
+                    controller: controller,
+                  ),
+                ),
               ],
             ),
           ),
@@ -59,7 +75,11 @@ class _PeriodTab extends StatelessWidget {
   final LeaderboardPeriod period;
   final QuizController controller;
 
-  const _PeriodTab({required this.label, required this.period, required this.controller});
+  const _PeriodTab({
+    required this.label,
+    required this.period,
+    required this.controller,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -98,9 +118,12 @@ class _Body extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (controller.isLoadingLeaderboard && controller.leaderboardPage == null) {
-      return const Center(child: CircularProgressIndicator(color: Colors.white));
+      return const Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      );
     }
-    if (controller.leaderboardError != null && controller.leaderboardPage == null) {
+    if (controller.leaderboardError != null &&
+        controller.leaderboardPage == null) {
       return _MessageState(
         icon: '🔌',
         title: 'Couldn\'t load the leaderboard',
@@ -116,7 +139,9 @@ class _Body extends StatelessWidget {
     if (page.entries.isEmpty) {
       return _MessageState(
         icon: '🏆',
-        title: page.period == LeaderboardPeriod.daily ? 'No Daily Rush scores yet' : 'No scores yet',
+        title: page.period == LeaderboardPeriod.daily
+            ? 'No Daily Rush scores yet'
+            : 'No scores yet',
         subtitle: 'Be the first to set the pace!',
       );
     }
@@ -131,11 +156,20 @@ class _Body extends StatelessWidget {
             itemCount: page.entries.length,
             itemBuilder: (context, i) {
               final entry = page.entries[i];
-              return _LeaderboardRow(entry: entry, isMe: entry.playerId == myPlayerId);
+              return _LeaderboardRow(
+                entry: entry,
+                isMe: entry.playerId == myPlayerId,
+              );
             },
           ),
         ),
-        if (page.me != null) _MyPositionCard(entry: page.me!, inVisiblePage: page.entries.any((e) => e.playerId == page.me!.playerId)),
+        if (page.me != null)
+          _MyPositionCard(
+            entry: page.me!,
+            inVisiblePage: page.entries.any(
+              (e) => e.playerId == page.me!.playerId,
+            ),
+          ),
       ],
     );
   }
@@ -149,14 +183,29 @@ class _LeaderboardRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final medal = entry.rank == 1 ? '🥇' : entry.rank == 2 ? '🥈' : entry.rank == 3 ? '🥉' : null;
+    final medal = entry.rank == 1
+        ? '🥇'
+        : entry.rank == 2
+        ? '🥈'
+        : entry.rank == 3
+        ? '🥉'
+        : null;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: isMe ? AppColors.goldTimer.withValues(alpha: 0.25) : AppColors.cardWhite,
-        borderRadius: BorderRadius.circular(16),
+        color: isMe
+            ? AppColors.goldTimer.withValues(alpha: 0.25)
+            : AppColors.cardWhite,
+        borderRadius: BorderRadius.circular(22),
         border: isMe ? Border.all(color: AppColors.goldTimer, width: 2) : null,
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x26000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -164,19 +213,44 @@ class _LeaderboardRow extends StatelessWidget {
             width: 32,
             child: medal != null
                 ? Text(medal, style: const TextStyle(fontSize: 20))
-                : Text('${entry.rank}', style: AppFonts.inter(size: 14, weight: FontWeight.w800, color: AppColors.mutedText)),
+                : Text(
+                    '${entry.rank}',
+                    style: AppFonts.inter(
+                      size: 14,
+                      weight: FontWeight.w800,
+                      color: AppColors.mutedText,
+                    ),
+                  ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               isMe ? '${entry.displayName} (you)' : entry.displayName,
               overflow: TextOverflow.ellipsis,
-              style: AppFonts.inter(size: 14, weight: FontWeight.w700, color: AppColors.darkText),
+              style: AppFonts.inter(
+                size: 14,
+                weight: FontWeight.w700,
+                color: AppColors.darkText,
+              ),
             ),
           ),
-          Text('🔥${entry.bestStreak}', style: AppFonts.inter(size: 12, weight: FontWeight.w600, color: AppColors.mutedText)),
+          Text(
+            '🔥${entry.bestStreak}',
+            style: AppFonts.inter(
+              size: 12,
+              weight: FontWeight.w600,
+              color: AppColors.mutedText,
+            ),
+          ),
           const SizedBox(width: 10),
-          Text('${entry.score}', style: AppFonts.inter(size: 15, weight: FontWeight.w800, color: AppColors.darkText)),
+          Text(
+            '${entry.score}',
+            style: AppFonts.inter(
+              size: 15,
+              weight: FontWeight.w800,
+              color: AppColors.darkText,
+            ),
+          ),
         ],
       ),
     );
@@ -197,16 +271,40 @@ class _MyPositionCard extends StatelessWidget {
       margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(16),
+        color: AppColors.cardWhite,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x26000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Text('YOUR RANK', style: AppFonts.inter(size: 11, weight: FontWeight.w800, color: Colors.white.withValues(alpha: 0.8))),
+          Text(
+            'YOUR RANK',
+            style: AppFonts.inter(
+              size: 11,
+              weight: FontWeight.w800,
+              color: AppColors.mutedText,
+            ),
+          ),
           const SizedBox(width: 10),
-          Text('#${entry.rank}', style: AppFonts.baloo(size: 18)),
+          Text(
+            '#${entry.rank}',
+            style: AppFonts.baloo(size: 18, color: AppColors.darkText),
+          ),
           const Spacer(),
-          Text('${entry.score}', style: AppFonts.inter(size: 15, weight: FontWeight.w800)),
+          Text(
+            '${entry.score}',
+            style: AppFonts.inter(
+              size: 15,
+              weight: FontWeight.w800,
+              color: AppColors.darkText,
+            ),
+          ),
         ],
       ),
     );
@@ -220,7 +318,13 @@ class _MessageState extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
 
-  const _MessageState({required this.icon, required this.title, required this.subtitle, this.actionLabel, this.onAction});
+  const _MessageState({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.actionLabel,
+    this.onAction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -232,12 +336,20 @@ class _MessageState extends StatelessWidget {
           children: [
             Text(icon, style: const TextStyle(fontSize: 44)),
             const SizedBox(height: 12),
-            Text(title, textAlign: TextAlign.center, style: AppFonts.baloo(size: 18)),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: AppFonts.baloo(size: 18),
+            ),
             const SizedBox(height: 6),
             Text(
               subtitle,
               textAlign: TextAlign.center,
-              style: AppFonts.inter(size: 13, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.8)),
+              style: AppFonts.inter(
+                size: 13,
+                weight: FontWeight.w600,
+                color: Colors.white.withValues(alpha: 0.8),
+              ),
             ),
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 18),
@@ -247,9 +359,22 @@ class _MessageState extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                   onTap: onAction,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    decoration: BoxDecoration(color: AppColors.goldTimer, borderRadius: BorderRadius.circular(14)),
-                    child: Text(actionLabel!, style: AppFonts.inter(size: 13, weight: FontWeight.w800, color: AppColors.darkText)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.goldTimer,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(
+                      actionLabel!,
+                      style: AppFonts.inter(
+                        size: 13,
+                        weight: FontWeight.w800,
+                        color: AppColors.darkText,
+                      ),
+                    ),
                   ),
                 ),
               ),

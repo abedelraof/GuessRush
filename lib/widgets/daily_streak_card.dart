@@ -25,29 +25,58 @@ class DailyStreakCard extends StatelessWidget {
     final subtitle = current == 0
         ? 'Complete today\'s Daily Rush to start a streak'
         : dailyRushCompletedToday
-            ? 'Come back tomorrow to keep it going'
-            : 'Play today\'s Daily Rush to keep it going';
+        ? 'Come back tomorrow to keep it going'
+        : 'Play today\'s Daily Rush to keep it going';
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(18),
+        color: AppColors.cardWhite,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x26000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Row(
         children: [
-          Text('🔥', style: TextStyle(fontSize: 28, shadows: [Shadow(color: AppColors.streakGradA.withValues(alpha: 0.6), blurRadius: 12)])),
+          Text(
+            '🔥',
+            style: TextStyle(
+              fontSize: 28,
+              shadows: [
+                Shadow(
+                  color: AppColors.streakGradA.withValues(alpha: 0.6),
+                  blurRadius: 12,
+                ),
+              ],
+            ),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$current DAY STREAK', style: AppFonts.inter(size: 14, weight: FontWeight.w800)),
+                Text(
+                  '$current DAY STREAK',
+                  style: AppFonts.inter(
+                    size: 14,
+                    weight: FontWeight.w800,
+                    color: AppColors.darkText,
+                  ),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: AppFonts.inter(size: 11, weight: FontWeight.w600, color: Colors.white.withValues(alpha: 0.8)),
+                  style: AppFonts.inter(
+                    size: 11,
+                    weight: FontWeight.w600,
+                    color: AppColors.mutedText,
+                  ),
                 ),
               ],
             ),
@@ -56,8 +85,22 @@ class DailyStreakCard extends StatelessWidget {
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text('$longest', style: AppFonts.inter(size: 15, weight: FontWeight.w800)),
-                Text('BEST', style: AppFonts.inter(size: 9, weight: FontWeight.w700, color: Colors.white.withValues(alpha: 0.75))),
+                Text(
+                  '$longest',
+                  style: AppFonts.inter(
+                    size: 15,
+                    weight: FontWeight.w800,
+                    color: AppColors.darkText,
+                  ),
+                ),
+                Text(
+                  'BEST',
+                  style: AppFonts.inter(
+                    size: 9,
+                    weight: FontWeight.w700,
+                    color: AppColors.mutedText,
+                  ),
+                ),
               ],
             ),
           ],

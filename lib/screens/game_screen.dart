@@ -58,6 +58,17 @@ class GameScreen extends StatelessWidget {
           SafeArea(
             child: Column(
               children: [
+                // Play With Friends only — a no-op Column child (nothing rendered)
+                // for an ordinary solo/Daily Rush, since activeMatchId is null.
+                if (controller.activeMatchId != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+                    child: _OpponentStrip(
+                      opponentName: controller.opponent?.displayName ?? 'Opponent',
+                      opponentIndex: controller.opponentQuestionIndex,
+                      total: controller.questionTotal,
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
                   child: Column(
@@ -315,6 +326,61 @@ class GameScreen extends StatelessWidget {
                 onChoose: controller.chooseDoubleDown,
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Play With Friends' opponent HUD — presence only, deliberately never shows
+/// correctness or score (see the plan's "presence-only reveal" decision);
+/// just which question they're on, as a mini progress bar alongside their name.
+class _OpponentStrip extends StatelessWidget {
+  final String opponentName;
+  final int opponentIndex;
+  final int total;
+
+  const _OpponentStrip({required this.opponentName, required this.opponentIndex, required this.total});
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = total > 0 ? (opponentIndex / total).clamp(0.0, 1.0) : 0.0;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Text('🆚', style: TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              opponentName,
+              overflow: TextOverflow.ellipsis,
+              style: AppFonts.inter(size: 11, weight: FontWeight.w800, color: Colors.white.withValues(alpha: 0.85)),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                height: 6,
+                color: Colors.white.withValues(alpha: 0.2),
+                alignment: Alignment.centerLeft,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0, end: pct),
+                  duration: const Duration(milliseconds: 400),
+                  curve: Curves.easeOut,
+                  builder: (context, factor, child) =>
+                      FractionallySizedBox(widthFactor: factor, child: child),
+                  child: Container(color: AppColors.tilePink),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:quizo/models/category.dart';
 import 'package:quizo/models/daily_rush_status.dart';
+import 'package:quizo/models/game_mode.dart';
 import 'package:quizo/models/home_summary.dart';
 import 'package:quizo/models/leaderboard.dart';
 import 'package:quizo/models/mission.dart';
@@ -12,6 +13,7 @@ import 'package:quizo/models/player_profile.dart';
 import 'package:quizo/models/question.dart';
 import 'package:quizo/screens/events_screen.dart';
 import 'package:quizo/screens/home_screen.dart';
+import 'package:quizo/screens/pick_rush_screen.dart';
 import 'package:quizo/services/api_client.dart';
 import 'package:quizo/services/quiz_api.dart';
 import 'package:quizo/state/quiz_controller.dart';
@@ -96,6 +98,11 @@ class FakeQuizApi extends QuizApi {
   int dailyRushStartCurrentIndex = 0;
   List<Question>? dailyRushQuestionsOverride;
 
+  // Pick Your Rush overrides.
+  int startRushCallCount = 0;
+  GameMode? lastRequestedMode;
+  List<Question>? rushModeQuestionsOverride;
+
   // Phase 6 (Retention Systems) overrides.
   List<CompletedMission> newlyCompletedMissionsOverride = const [];
   double xpMultiplierAppliedOverride = 1.0;
@@ -119,6 +126,10 @@ class FakeQuizApi extends QuizApi {
   RemoveOneResult? useRemoveOneResultOverride;
   int chooseDoubleDownCallCount = 0;
   String? lastDoubleDownChoiceRequested;
+
+  // Simulates Streak Rush's server-side early-exit: rushComplete flips true on the
+  // first non-correct answer, even though `questions` (the local list) has more left.
+  bool endRushOnFirstMiss = false;
 
   @override
   Future<SessionStart> createSession(int categoryId) async {
@@ -149,6 +160,13 @@ class FakeQuizApi extends QuizApi {
       questions: dailyRushQuestionsOverride ?? rushQuestions,
       currentIndex: dailyRushStartCurrentIndex,
     );
+  }
+
+  @override
+  Future<SessionStart> startRush(GameMode mode) async {
+    startRushCallCount++;
+    lastRequestedMode = mode;
+    return SessionStart(sessionId: 1, questions: rushModeQuestionsOverride ?? rushQuestions);
   }
 
   @override
@@ -208,7 +226,8 @@ class FakeQuizApi extends QuizApi {
       xpGained: answerScore,
       serverElapsedMs: 500,
       questionsRemaining: rushQuestions.length - answered,
-      rushComplete: answered >= rushQuestions.length,
+      rushComplete:
+          (endRushOnFirstMiss && !isCorrect) || answered >= rushQuestions.length,
       cluesRevealed: cluesRevealedOverride,
       clueMultiplier: clueMultiplierOverride,
       removeOneUsed: removeOneUsedOverride,
@@ -804,6 +823,73 @@ void main() {
   );
 
   testWidgets(
+    'startRush begins a Rush sourced from the rush-mode endpoint, not a category',
+    (tester) async {
+      final fakeApi = FakeQuizApi();
+      final controller = QuizController(quizApi: fakeApi);
+
+      await controller.startRush(GameMode.chaosRush);
+      await tester.pump();
+
+      expect(fakeApi.startRushCallCount, 1);
+      expect(fakeApi.lastRequestedMode, GameMode.chaosRush);
+      expect(controller.screen, AppScreen.game);
+      expect(controller.qIndex, 0);
+    },
+  );
+
+  testWidgets(
+    'Play Again replays the same mode via startRush when the last Rush was mode-based',
+    (tester) async {
+      final fakeApi = FakeQuizApi();
+      final controller = QuizController(quizApi: fakeApi);
+
+      await controller.startRush(GameMode.chillRush);
+      await tester.pump();
+      for (var i = 0; i < 10; i++) {
+        await controller.selectAnswer(0);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 1700));
+      }
+
+      expect(controller.screen, AppScreen.results);
+
+      controller.playAgain();
+      await tester.pump();
+
+      expect(fakeApi.startRushCallCount, 2);
+      expect(fakeApi.lastRequestedMode, GameMode.chillRush);
+    },
+  );
+
+  testWidgets(
+    'a Rush ends as soon as the server reports rushComplete, even with questions left locally '
+    '(Streak Rush: one miss ends the run)',
+    (tester) async {
+      final fakeApi = FakeQuizApi()..endRushOnFirstMiss = true;
+      // ids 1 (odd -> correct), 2 (even -> wrong) — the Rush should end right after
+      // question 2, well short of exhausting all 10 locally-held questions.
+      final controller = QuizController(quizApi: fakeApi);
+
+      await controller.startRush(GameMode.streakRush);
+      await tester.pump();
+
+      await controller.selectAnswer(0); // question id 1: correct
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700));
+      expect(controller.screen, AppScreen.game, reason: 'still going after a correct answer');
+      expect(controller.qIndex, 1);
+
+      await controller.selectAnswer(0); // question id 2: wrong
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1700));
+
+      expect(controller.screen, AppScreen.results);
+      expect(fakeApi.submittedQuestionIds, [1, 2]);
+    },
+  );
+
+  testWidgets(
     'goToEvents switches to the events screen and refreshes home/daily-rush data',
     (tester) async {
       final fakeApi = FakeQuizApi();
@@ -1328,6 +1414,57 @@ void main() {
         isNull,
         reason: 'no RenderFlex overflow or other exception at 360dp width',
       );
+    },
+  );
+
+  testWidgets(
+    'Pick Your Rush screen renders all four mode cards without layout overflow',
+    (tester) async {
+      addTearDown(tester.view.reset);
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+
+      final controller = QuizController(quizApi: FakeQuizApi());
+
+      await tester.pumpWidget(
+        MaterialApp(home: PickRushScreen(controller: controller)),
+      );
+      await tester.pump();
+
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'no RenderFlex overflow or other exception at 360dp width',
+      );
+      expect(find.text('Pick Your Rush'), findsOneWidget);
+      for (final mode in GameMode.values) {
+        expect(
+          find.byKey(ValueKey('rush-mode-card-${mode.name}')),
+          findsOneWidget,
+          reason: '${mode.name} card should render',
+        );
+      }
+    },
+  );
+
+  testWidgets(
+    'Tapping a Rush mode card starts that mode via the controller',
+    (tester) async {
+      final fakeApi = FakeQuizApi();
+      final controller = QuizController(quizApi: fakeApi);
+
+      await tester.pumpWidget(
+        MaterialApp(home: PickRushScreen(controller: controller)),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byKey(const ValueKey('rush-mode-card-chillRush')));
+      await tester.pump();
+      await tester.pump();
+
+      expect(fakeApi.startRushCallCount, 1);
+      expect(fakeApi.lastRequestedMode, GameMode.chillRush);
+      expect(controller.screen, AppScreen.game);
     },
   );
 }
