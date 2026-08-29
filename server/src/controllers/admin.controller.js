@@ -931,6 +931,8 @@ async function settingsPage(req, res) {
     claudeKeySuccess: null,
     ttsKeyError: null,
     ttsKeySuccess: null,
+    dangerZoneError: null,
+    dangerZoneSuccess: null,
   });
 }
 
@@ -953,6 +955,8 @@ async function renderSettingsWithError(req, res, status, overrides) {
     claudeKeySuccess: null,
     ttsKeyError: null,
     ttsKeySuccess: null,
+    dangerZoneError: null,
+    dangerZoneSuccess: null,
     ...overrides,
   });
 }
@@ -1038,6 +1042,62 @@ async function removeTtsKey(req, res) {
   await renderSettingsWithError(req, res, 200, { ttsKeySuccess: 'Custom AI key removed.' });
 }
 
+const CLEAR_DATA_CONFIRM_PHRASE = 'DELETE ALL DATA';
+
+/**
+ * Full reset: deletes every player (except admin accounts), question, game
+ * session, answer, achievement, mission-progress record, and daily-rush
+ * record. Categories and app_settings (API keys) are deliberately kept —
+ * this clears out player/game data, not the app's own configuration.
+ *
+ * Gated the same way updateAccount gates a password change (current password
+ * required) PLUS a typed confirmation phrase, since this is irreversible and
+ * far more consequential than anything else in Settings.
+ */
+async function clearAllData(req, res) {
+  const { current_password: currentPassword, confirm_phrase: confirmPhrase } = req.body || {};
+
+  const [rows] = await pool.query('SELECT * FROM players WHERE id = ?', [req.admin.id]);
+  const account = rows[0];
+  const passwordMatches = account && (await bcrypt.compare(currentPassword || '', account.password_hash));
+  if (!passwordMatches) {
+    return renderSettingsWithError(req, res, 401, { dangerZoneError: 'Current password is incorrect.' });
+  }
+  if (confirmPhrase !== CLEAR_DATA_CONFIRM_PHRASE) {
+    return renderSettingsWithError(req, res, 400, {
+      dangerZoneError: `Type "${CLEAR_DATA_CONFIRM_PHRASE}" exactly to confirm.`,
+    });
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    // Deletion order respects FK dependencies: each table here is deleted only
+    // once every table that references it has already been fully cleared.
+    const [answersResult] = await connection.query('DELETE FROM answers');
+    const [dailyResult] = await connection.query('DELETE FROM daily_rush_attempts');
+    const [achievementsResult] = await connection.query('DELETE FROM player_achievements');
+    const [missionsResult] = await connection.query('DELETE FROM player_mission_progress');
+    const [sessionsResult] = await connection.query('DELETE FROM game_sessions');
+    const [questionsResult] = await connection.query('DELETE FROM questions');
+    const [playersResult] = await connection.query("DELETE FROM players WHERE role != 'admin'");
+    await connection.commit();
+
+    await renderSettingsWithError(req, res, 200, {
+      dangerZoneSuccess:
+        `Cleared all data — ${playersResult.affectedRows} player(s), ${questionsResult.affectedRows} question(s), ` +
+        `${sessionsResult.affectedRows} session(s), ${answersResult.affectedRows} answer(s), ` +
+        `${achievementsResult.affectedRows} achievement(s), ${missionsResult.affectedRows} mission record(s), ` +
+        `${dailyResult.affectedRows} daily-rush record(s). Categories and admin accounts were kept.`,
+    });
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   loginForm,
   login,
@@ -1076,4 +1136,5 @@ module.exports = {
   removeClaudeKey,
   updateTtsKey,
   removeTtsKey,
+  clearAllData,
 };

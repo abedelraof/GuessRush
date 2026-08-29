@@ -127,7 +127,58 @@
           </form>
         </div>
       </section>
+
+      <section>
+        <h2 class="text-base font-bold text-red-700 mb-3">Danger zone</h2>
+        <div class="card p-6 border-2 border-red-200">
+          <p class="text-sm text-slate-500 mb-4">
+            Permanently deletes every player, question, game session, answer, achievement, mission record,
+            and daily-rush record. <strong class="text-slate-700">Categories, admin accounts, and saved API
+            keys are kept</strong> — this resets player/game data, not the app's own setup.
+            <strong class="text-red-700">This cannot be undone.</strong>
+          </p>
+          <% if (dangerZoneError) { %>
+            <div class="alert-error mb-4"><span>⚠️</span><span><%= dangerZoneError %></span></div>
+          <% } %>
+          <% if (dangerZoneSuccess) { %>
+            <div class="alert-success mb-4"><span>✓</span><span><%= dangerZoneSuccess %></span></div>
+          <% } %>
+          <form method="post" action="/admin/settings/clear-data" id="clear-data-form" class="space-y-4">
+            <div>
+              <label class="field-label">Current password</label>
+              <input class="field-input max-w-xs" type="password" name="current_password" required autocomplete="current-password">
+            </div>
+            <div>
+              <label class="field-label">Type <span class="font-mono font-bold">DELETE ALL DATA</span> to confirm</label>
+              <input class="field-input max-w-xs font-mono" type="text" name="confirm_phrase" id="confirm-phrase-input" required autocomplete="off">
+            </div>
+            <button class="btn-danger" type="submit" id="clear-data-submit" disabled>Clear all data</button>
+          </form>
+        </div>
+      </section>
     </main>
   </div>
+
+  <script>
+    (function () {
+      const REQUIRED_PHRASE = 'DELETE ALL DATA';
+      const input = document.getElementById('confirm-phrase-input');
+      const btn = document.getElementById('clear-data-submit');
+      const form = document.getElementById('clear-data-form');
+      if (!input || !btn || !form) return;
+
+      input.addEventListener('input', () => {
+        btn.disabled = input.value !== REQUIRED_PHRASE;
+      });
+
+      form.addEventListener('submit', (e) => {
+        const warned = confirm(
+          'This permanently deletes every player, question, game session, and answer. ' +
+          'Categories, admin accounts, and API keys are kept. This cannot be undone. Continue?'
+        );
+        if (!warned) e.preventDefault();
+      });
+    })();
+  </script>
 </body>
 </html>
