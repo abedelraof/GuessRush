@@ -192,9 +192,8 @@ async function deleteCategory(req, res) {
 
 // ---- Questions ----
 
-async function listQuestions(req, res) {
-  const categoryId = req.query.category_id ? Number(req.query.category_id) : null;
-  const importedCount = req.query.imported != null ? Number(req.query.imported) : null;
+/** Shared by listQuestions and the bulk-delete error path (partial failure). */
+async function fetchQuestionsListData(categoryId) {
   const [categories] = await pool.query('SELECT * FROM categories ORDER BY name');
   const [questions] = await pool.query(
     `SELECT q.*, c.name AS category_name FROM questions q
@@ -203,6 +202,15 @@ async function listQuestions(req, res) {
      ORDER BY q.id DESC`,
     categoryId ? [categoryId] : []
   );
+  return { categories, questions };
+}
+
+async function listQuestions(req, res) {
+  const categoryId = req.query.category_id ? Number(req.query.category_id) : null;
+  const importedCount = req.query.imported != null ? Number(req.query.imported) : null;
+  const bulkDeletedCount = req.query.bulk_deleted != null ? Number(req.query.bulk_deleted) : null;
+  const bulkUpdatedCount = req.query.bulk_updated != null ? Number(req.query.bulk_updated) : null;
+  const { categories, questions } = await fetchQuestionsListData(categoryId);
   res.render('admin/questions/list', {
     admin: req.admin,
     categories,
@@ -210,7 +218,17 @@ async function listQuestions(req, res) {
     selectedCategoryId: categoryId,
     error: null,
     importedCount: Number.isInteger(importedCount) ? importedCount : null,
+    bulkDeletedCount: Number.isInteger(bulkDeletedCount) ? bulkDeletedCount : null,
+    bulkUpdatedCount: Number.isInteger(bulkUpdatedCount) ? bulkUpdatedCount : null,
   });
+}
+
+/** Normalizes the `ids` field from a bulk-action form (checkboxes) into positive integer ids. */
+function collectBulkIds(body) {
+  const raw = body && body.ids;
+  if (!raw) return [];
+  const arr = Array.isArray(raw) ? raw : [raw];
+  return arr.map(Number).filter((n) => Number.isInteger(n) && n > 0);
 }
 
 function emptyQuestionForm() {
@@ -404,10 +422,7 @@ async function deleteQuestion(req, res) {
     res.redirect('/admin/questions');
   } catch (err) {
     if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === 'ER_ROW_IS_REFERENCED') {
-      const [categories] = await pool.query('SELECT * FROM categories ORDER BY name');
-      const [questions] = await pool.query(
-        `SELECT q.*, c.name AS category_name FROM questions q JOIN categories c ON c.id = q.category_id ORDER BY q.id DESC`
-      );
+      const { categories, questions } = await fetchQuestionsListData(null);
       return res.status(409).render('admin/questions/list', {
         admin: req.admin,
         categories,
@@ -415,10 +430,133 @@ async function deleteQuestion(req, res) {
         selectedCategoryId: null,
         error: 'Cannot delete: this question already has answers recorded against it.',
         importedCount: null,
+        bulkDeletedCount: null,
+        bulkUpdatedCount: null,
       });
     }
     throw err;
   }
+}
+
+/**
+ * Deletes every selected question, tolerating the same FK-referenced case as the
+ * single-delete path (a question with recorded answers can't be deleted) — rather
+ * than failing the whole batch, it deletes everything else and reports which ids
+ * were blocked.
+ */
+async function bulkDeleteQuestions(req, res) {
+  const ids = collectBulkIds(req.body);
+  if (ids.length === 0) return res.redirect('/admin/questions');
+
+  let deletedCount = 0;
+  const blockedIds = [];
+  for (const id of ids) {
+    try {
+      const [result] = await pool.query('DELETE FROM questions WHERE id = ?', [id]);
+      if (result.affectedRows > 0) deletedCount += 1;
+    } catch (err) {
+      if (err.code === 'ER_ROW_IS_REFERENCED_2' || err.code === 'ER_ROW_IS_REFERENCED') {
+        blockedIds.push(id);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  if (blockedIds.length === 0) {
+    return res.redirect(`/admin/questions?bulk_deleted=${deletedCount}`);
+  }
+
+  const { categories, questions } = await fetchQuestionsListData(null);
+  res.status(409).render('admin/questions/list', {
+    admin: req.admin,
+    categories,
+    questions,
+    selectedCategoryId: null,
+    error:
+      `Deleted ${deletedCount} of ${ids.length} selected question(s). ${blockedIds.length} couldn't be ` +
+      `deleted because they already have answers recorded (IDs: ${blockedIds.join(', ')}).`,
+    importedCount: null,
+    bulkDeletedCount: null,
+    bulkUpdatedCount: null,
+  });
+}
+
+/** Shows the bulk-edit form for the selected questions. */
+async function bulkEditForm(req, res) {
+  const ids = collectBulkIds(req.body);
+  if (ids.length === 0) return res.redirect('/admin/questions');
+
+  const [categories] = await pool.query('SELECT * FROM categories ORDER BY name');
+  const [questions] = await pool.query(
+    `SELECT q.*, c.name AS category_name FROM questions q
+     JOIN categories c ON c.id = q.category_id
+     WHERE q.id IN (?)
+     ORDER BY q.id DESC`,
+    [ids]
+  );
+  res.render('admin/questions/bulk_edit', {
+    admin: req.admin,
+    categories,
+    questions,
+    ids,
+    difficulties: DIFFICULTIES,
+    error: null,
+  });
+}
+
+/**
+ * Applies bulk-edit changes to every selected question in one UPDATE — only the
+ * fields the admin actually filled in are changed (an empty field means "leave
+ * this alone"), unlike the single-question edit form which always rewrites every
+ * column. Only category/difficulty/timer are offered: everything else (prompt,
+ * options, media, clues, ...) is inherently per-question content.
+ */
+async function bulkEditConfirm(req, res) {
+  const body = req.body || {};
+  const ids = collectBulkIds(body);
+  if (ids.length === 0) return res.redirect('/admin/questions');
+
+  const setClauses = [];
+  const params = [];
+  if (body.category_id) {
+    setClauses.push('category_id = ?');
+    params.push(Number(body.category_id));
+  }
+  if (DIFFICULTIES.includes(body.difficulty)) {
+    setClauses.push('difficulty = ?');
+    params.push(body.difficulty);
+  }
+  if (body.timer_seconds !== undefined && body.timer_seconds !== '') {
+    const timerSeconds = Number(body.timer_seconds);
+    if (Number.isInteger(timerSeconds) && timerSeconds >= 0) {
+      setClauses.push('timer_seconds = ?');
+      params.push(timerSeconds);
+    }
+  }
+
+  if (setClauses.length === 0) {
+    const [categories] = await pool.query('SELECT * FROM categories ORDER BY name');
+    const [questions] = await pool.query(
+      `SELECT q.*, c.name AS category_name FROM questions q
+       JOIN categories c ON c.id = q.category_id
+       WHERE q.id IN (?)
+       ORDER BY q.id DESC`,
+      [ids]
+    );
+    return res.status(400).render('admin/questions/bulk_edit', {
+      admin: req.admin,
+      categories,
+      questions,
+      ids,
+      difficulties: DIFFICULTIES,
+      error: 'Choose at least one field to change.',
+    });
+  }
+
+  params.push(ids);
+  await pool.query(`UPDATE questions SET ${setClauses.join(', ')} WHERE id IN (?)`, params);
+  res.redirect(`/admin/questions?bulk_updated=${ids.length}`);
 }
 
 // ---- AI question generation ----
@@ -919,6 +1057,9 @@ module.exports = {
   editQuestionForm,
   updateQuestion,
   deleteQuestion,
+  bulkDeleteQuestions,
+  bulkEditForm,
+  bulkEditConfirm,
   generateForm,
   generatePreview,
   generateConfirm,

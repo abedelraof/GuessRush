@@ -37,6 +37,10 @@ router.get('/questions/import', requireAdmin, asyncHandler(controller.importForm
 router.post('/questions/import', requireAdmin, asyncHandler(controller.importPreview));
 router.post('/questions/import/confirm', requireAdmin, asyncHandler(controller.importConfirm));
 
+router.post('/questions/bulk-delete', requireAdmin, asyncHandler(controller.bulkDeleteQuestions));
+router.post('/questions/bulk-edit', requireAdmin, asyncHandler(controller.bulkEditForm));
+router.post('/questions/bulk-edit/confirm', requireAdmin, asyncHandler(controller.bulkEditConfirm));
+
 router.get('/questions/:id/edit', requireAdmin, asyncHandler(controller.editQuestionForm));
 router.post('/questions/:id', requireAdmin, asyncHandler(controller.updateQuestion));
 router.post('/questions/:id/delete', requireAdmin, asyncHandler(controller.deleteQuestion));

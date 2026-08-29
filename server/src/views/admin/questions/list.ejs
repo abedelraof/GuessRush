@@ -24,6 +24,20 @@
         </div>
       <% } %>
 
+      <% if (typeof bulkDeletedCount === 'number' && bulkDeletedCount !== null) { %>
+        <div class="alert-success mb-5">
+          <span>✅</span>
+          <span>Deleted <%= bulkDeletedCount %> question<%= bulkDeletedCount === 1 ? '' : 's' %>.</span>
+        </div>
+      <% } %>
+
+      <% if (typeof bulkUpdatedCount === 'number' && bulkUpdatedCount !== null) { %>
+        <div class="alert-success mb-5">
+          <span>✅</span>
+          <span>Updated <%= bulkUpdatedCount %> question<%= bulkUpdatedCount === 1 ? '' : 's' %>.</span>
+        </div>
+      <% } %>
+
       <% if (error) { %>
         <div class="alert-error mb-5">
           <span>⚠️</span>
@@ -42,10 +56,17 @@
         </select>
       </form>
 
+      <div id="bulk-actions-bar" class="card hidden items-center gap-3 px-4 py-3 mb-4">
+        <span id="bulk-selected-count" class="text-sm font-semibold text-slate-700"></span>
+        <button type="button" id="bulk-edit-btn" class="btn-secondary py-1.5 px-3 text-xs">Bulk edit</button>
+        <button type="button" id="bulk-delete-btn" class="btn-danger py-1.5 px-3 text-xs">Bulk delete</button>
+      </div>
+
       <div class="card overflow-hidden">
         <table class="table-base">
           <thead>
             <tr>
+              <th class="w-8"><input type="checkbox" id="select-all-checkbox" aria-label="Select all"></th>
               <th>Type</th>
               <th>Difficulty</th>
               <th>Category</th>
@@ -57,6 +78,7 @@
           <tbody>
             <% questions.forEach(function(q) { %>
               <tr>
+                <td><input type="checkbox" class="row-checkbox" name="ids" value="<%= q.id %>" aria-label="Select question <%= q.id %>"></td>
                 <td><span class="badge-brand"><%= q.type %></span></td>
                 <td><span class="badge-brand"><%= q.difficulty %></span></td>
                 <td class="text-slate-600"><%= q.category_name %></td>
@@ -79,7 +101,7 @@
             <% }); %>
             <% if (questions.length === 0) { %>
               <tr>
-                <td colspan="6" class="text-center text-slate-400 py-10">No questions yet.</td>
+                <td colspan="7" class="text-center text-slate-400 py-10">No questions yet.</td>
               </tr>
             <% } %>
           </tbody>
@@ -87,5 +109,68 @@
       </div>
     </main>
   </div>
+
+  <script>
+    // Bulk select/edit/delete — plain full-page POSTs (dynamically built forms),
+    // matching every other action on this page rather than a fetch/JSON flow.
+    (function () {
+      const selectAll = document.getElementById('select-all-checkbox');
+      const rowCheckboxes = Array.from(document.querySelectorAll('.row-checkbox'));
+      const bar = document.getElementById('bulk-actions-bar');
+      const countLabel = document.getElementById('bulk-selected-count');
+
+      function selectedIds() {
+        return rowCheckboxes.filter((cb) => cb.checked).map((cb) => cb.value);
+      }
+
+      function refresh() {
+        const ids = selectedIds();
+        bar.classList.toggle('hidden', ids.length === 0);
+        bar.classList.toggle('flex', ids.length > 0);
+        countLabel.textContent = ids.length + ' selected';
+        if (selectAll) {
+          selectAll.checked = ids.length > 0 && ids.length === rowCheckboxes.length;
+          selectAll.indeterminate = ids.length > 0 && ids.length < rowCheckboxes.length;
+        }
+      }
+
+      function submitTo(action) {
+        const form = document.createElement('form');
+        form.method = 'post';
+        form.action = action;
+        selectedIds().forEach((id) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'ids';
+          input.value = id;
+          form.appendChild(input);
+        });
+        document.body.appendChild(form);
+        form.submit();
+      }
+
+      if (selectAll) {
+        selectAll.addEventListener('change', () => {
+          rowCheckboxes.forEach((cb) => (cb.checked = selectAll.checked));
+          refresh();
+        });
+      }
+      rowCheckboxes.forEach((cb) => cb.addEventListener('change', refresh));
+
+      const editBtn = document.getElementById('bulk-edit-btn');
+      const deleteBtn = document.getElementById('bulk-delete-btn');
+      if (editBtn) editBtn.addEventListener('click', () => submitTo('/admin/questions/bulk-edit'));
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+          const count = selectedIds().length;
+          if (confirm('Delete ' + count + ' selected question' + (count === 1 ? '' : 's') + '?')) {
+            submitTo('/admin/questions/bulk-delete');
+          }
+        });
+      }
+
+      refresh();
+    })();
+  </script>
 </body>
 </html>
