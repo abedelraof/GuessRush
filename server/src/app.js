@@ -10,6 +10,7 @@ const leaderboardRoutes = require('./routes/leaderboard.routes');
 const profileRoutes = require('./routes/profile.routes');
 const dailyRushRoutes = require('./routes/dailyRush.routes');
 const rushRoutes = require('./routes/rush.routes');
+const matchesRoutes = require('./routes/matches.routes');
 const homeRoutes = require('./routes/home.routes');
 const adminRoutes = require('./routes/admin.routes');
 const errorHandler = require('./middleware/errorHandler');
@@ -36,6 +37,7 @@ app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/daily-rush', dailyRushRoutes);
 app.use('/api/rush', rushRoutes);
+app.use('/api/matches', matchesRoutes);
 app.use('/api/home', homeRoutes);
 
 app.use('/admin', adminRoutes);

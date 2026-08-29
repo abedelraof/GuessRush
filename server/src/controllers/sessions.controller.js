@@ -10,6 +10,7 @@ const { REMOVE_ONE_USES_PER_RUSH, DOUBLE_DOWN_STREAK_THRESHOLD } = require('../c
 const missionsService = require('../services/missions.service');
 const dailyStreakService = require('../services/dailyStreak.service');
 const eventsService = require('../services/events.service');
+const matchProgressService = require('../services/matchProgress.service');
 
 function describeAchievements(keys) {
   return keys
@@ -424,6 +425,10 @@ async function submitAnswer(req, res) {
 
     await connection.commit();
 
+    // Play With Friends: a no-op for an ordinary solo Rush (the lookup inside
+    // just finds no matching match row and returns) — see matchProgress.service.js.
+    await matchProgressService.pushOpponentProgress(sessionId, nextIndex);
+
     res.json({
       is_correct: isCorrect,
       timed_out: timedOut,
@@ -581,6 +586,10 @@ async function finish(req, res) {
     // meaningful once the completion above is actually committed, so it runs after —
     // never mix a second pool connection into the still-open transaction above.
     const dailyInfo = await buildDailyInfo(sessionId, req.user.id, session.score);
+
+    // Play With Friends: same reasoning as buildDailyInfo above — read-only, only
+    // meaningful post-commit, a no-op for a session that isn't part of a match.
+    await matchProgressService.resolveMatchIfBothDone(sessionId);
 
     const questionIds = parseJsonField(session.question_ids);
     const endedAt = justCompleted ? new Date() : session.ended_at;

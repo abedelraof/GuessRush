@@ -181,3 +181,31 @@ CREATE TABLE IF NOT EXISTS player_mission_progress (
   FOREIGN KEY (player_id) REFERENCES players(id),
   UNIQUE KEY uniq_player_mission_period (player_id, mission_key, period_key)
 ) ENGINE=InnoDB;
+
+-- Play With Friends: one row per 1v1 match (random matchmaking or a friend
+-- invite code). Capped at exactly two players by design — player_b_id/
+-- session_b_id stay NULL until someone joins. The two game_sessions this
+-- points at are ordinary Rush sessions (mode='quick_rush') that happen to
+-- share the same question_ids — nothing about scoring/gameplay itself is
+-- match-aware; see matchProgress.service.js for how presence/results are
+-- layered on top without touching sessions.controller.js's core logic.
+CREATE TABLE IF NOT EXISTS matches (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  mode ENUM('random','friend') NOT NULL,
+  status ENUM('waiting','in_progress','completed','cancelled') NOT NULL DEFAULT 'waiting',
+  invite_code VARCHAR(8) NULL UNIQUE,
+  question_ids JSON NULL,
+  player_a_id INT NOT NULL,
+  player_b_id INT NULL,
+  session_a_id INT NULL,
+  session_b_id INT NULL,
+  winner_player_id INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  started_at TIMESTAMP NULL DEFAULT NULL,
+  ended_at TIMESTAMP NULL DEFAULT NULL,
+  FOREIGN KEY (player_a_id) REFERENCES players(id),
+  FOREIGN KEY (player_b_id) REFERENCES players(id),
+  FOREIGN KEY (session_a_id) REFERENCES game_sessions(id),
+  FOREIGN KEY (session_b_id) REFERENCES game_sessions(id),
+  FOREIGN KEY (winner_player_id) REFERENCES players(id)
+) ENGINE=InnoDB;
