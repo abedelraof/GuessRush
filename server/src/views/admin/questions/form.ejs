@@ -24,10 +24,10 @@
             <div class="rounded-xl border border-brand-200 bg-brand-50 p-4 flex items-center justify-between gap-4">
               <div>
                 <p class="text-sm font-semibold text-slate-900">Let AI draft this question</p>
-                <p class="text-xs text-slate-500">Pick a category below, then fill in everything else with one click.</p>
+                <p class="text-xs text-slate-500">Pick a category, type, and difficulty below, then fill in everything else with one click.</p>
                 <p class="ai-fill-error hidden text-xs text-rose-600 mt-1"></p>
               </div>
-              <button type="button" class="ai-fill-question-btn btn-primary shrink-0" data-endpoint="/admin/questions/ai-fill" data-category-selector="[name=category_id]">
+              <button type="button" class="ai-fill-question-btn btn-primary shrink-0" data-endpoint="/admin/questions/ai-fill" data-category-selector="[name=category_id]" data-type-selector="[name=type]" data-difficulty-selector="[name=difficulty]">
                 ✨ Generate with AI
               </button>
             </div>

@@ -15,6 +15,8 @@ document.addEventListener('click', function (e) {
 async function runAiFillQuestion(btn) {
   var form = btn.closest('form');
   var categoryEl = form.querySelector(btn.dataset.categorySelector);
+  var typeEl = btn.dataset.typeSelector ? form.querySelector(btn.dataset.typeSelector) : null;
+  var difficultyEl = btn.dataset.difficultySelector ? form.querySelector(btn.dataset.difficultySelector) : null;
   var errorEl = form.querySelector('.ai-fill-error');
 
   if (errorEl) {
@@ -38,7 +40,11 @@ async function runAiFillQuestion(btn) {
     var res = await fetch(btn.dataset.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ category_id: categoryEl.value }),
+      body: JSON.stringify({
+        category_id: categoryEl.value,
+        type: typeEl ? typeEl.value : '',
+        difficulty: difficultyEl ? difficultyEl.value : '',
+      }),
     });
     var data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to generate a question.');

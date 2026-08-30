@@ -850,7 +850,8 @@ async function importConfirm(req, res) {
  *  handed straight back as JSON to fill the New question form's fields in
  *  place instead of going through the separate draft-then-review screen. */
 async function aiFillQuestion(req, res) {
-  const categoryId = Number((req.body || {}).category_id);
+  const { category_id: categoryIdRaw, type, difficulty } = req.body || {};
+  const categoryId = Number(categoryIdRaw);
   const [categories] = await pool.query('SELECT * FROM categories ORDER BY name');
   const category = categories.find((c) => c.id === categoryId);
   if (!category) {
@@ -871,6 +872,8 @@ async function aiFillQuestion(req, res) {
       workspaceId,
       categoryName: category.name,
       count: 1,
+      type: QUESTION_TYPES.includes(type) ? type : undefined,
+      difficulty: DIFFICULTIES.includes(difficulty) ? difficulty : undefined,
     });
     if (!question) throw new Error('Claude did not return a question. Try again.');
     res.json({ question });

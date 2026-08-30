@@ -55,20 +55,34 @@ const GenerateResponseSchema = z.object({
  * rejected with "anthropic-workspace-id is required...". A classic
  * workspace-scoped key doesn't need this at all, so it's optional here.
  */
-async function generateQuestions({ apiKey, workspaceId, categoryName, count }) {
+async function generateQuestions({ apiKey, workspaceId, categoryName, count, type, difficulty }) {
   const client = new Anthropic({
     apiKey,
     defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
   });
+
+  // "Vary across the batch" only makes sense when nothing's pinned — a caller asking
+  // for one question of a specific type/difficulty (the New question form's AI-fill
+  // button) wants exactly that, not Claude picking something else to "add variety".
+  const varietyInstructions = [];
+  if (!type) varietyInstructions.push('Vary question types across the batch — do not use the same type for every question.');
+  if (!difficulty) {
+    varietyInstructions.push(
+      'Also vary difficulty across the batch — mix easy, medium, hard, and extreme questions rather than making them all the same difficulty.'
+    );
+  }
+
+  let userContent = `Category: "${categoryName}". Generate exactly ${count} quiz question(s) for this category.`;
+  if (type) userContent += ` Every question must have type "${type}".`;
+  if (difficulty) userContent += ` Every question must have difficulty "${difficulty}".`;
 
   const response = await client.messages.parse({
     model: 'claude-opus-5',
     max_tokens: 16000,
     system:
       'You write trivia quiz questions for a mobile guessing game. Follow the schema exactly. ' +
-      'Vary question types across the batch — do not use the same type for every question. ' +
-      'Also vary difficulty across the batch — mix easy, medium, hard, and extreme questions rather than ' +
-      'making them all the same difficulty. ' +
+      varietyInstructions.join(' ') +
+      (varietyInstructions.length ? ' ' : '') +
       'This app has no real media assets: for image/audio/video questions, media_placeholder/media_duration ' +
       'are just short flavor-text stand-ins (e.g. "character portrait", "0:12"), never a real file or URL. ' +
       'Keep prompts and options concise, unambiguous, and appropriate for a general audience. ' +
@@ -79,7 +93,7 @@ async function generateQuestions({ apiKey, workspaceId, categoryName, count }) {
     messages: [
       {
         role: 'user',
-        content: `Category: "${categoryName}". Generate exactly ${count} quiz question(s) for this category.`,
+        content: userContent,
       },
     ],
     output_config: {
