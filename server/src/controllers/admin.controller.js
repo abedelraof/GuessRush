@@ -843,6 +843,42 @@ async function importConfirm(req, res) {
   res.redirect(`/admin/questions?imported=${insertedCount}`);
 }
 
+// ---- AI single-question fill (New question form) ----
+
+/** Drafts one full question for the given category via Claude — same call the
+ *  bulk "Generate with AI" flow uses (generateQuestions with count: 1), just
+ *  handed straight back as JSON to fill the New question form's fields in
+ *  place instead of going through the separate draft-then-review screen. */
+async function aiFillQuestion(req, res) {
+  const categoryId = Number((req.body || {}).category_id);
+  const [categories] = await pool.query('SELECT * FROM categories ORDER BY name');
+  const category = categories.find((c) => c.id === categoryId);
+  if (!category) {
+    return res.status(400).json({ error: 'Choose a category first.' });
+  }
+
+  const [apiKey, workspaceId] = await Promise.all([
+    settingsService.getSetting(CLAUDE_KEY_SETTING),
+    settingsService.getSetting(CLAUDE_WORKSPACE_SETTING),
+  ]);
+  if (!apiKey) {
+    return res.status(400).json({ error: 'Add a Claude API key in Settings first.' });
+  }
+
+  try {
+    const [question] = await claudeService.generateQuestions({
+      apiKey,
+      workspaceId,
+      categoryName: category.name,
+      count: 1,
+    });
+    if (!question) throw new Error('Claude did not return a question. Try again.');
+    res.json({ question });
+  } catch (err) {
+    res.status(502).json({ error: claudeService.friendlyErrorMessage(err) });
+  }
+}
+
 // ---- AI audio generation ----
 
 /** Pre-save: synthesizes to a temp file. Caller (review card / new-question form) stashes
@@ -1222,6 +1258,7 @@ module.exports = {
   importForm,
   importPreview,
   importConfirm,
+  aiFillQuestion,
   audioPreview,
   generateAudioForQuestion,
   imagePreview,

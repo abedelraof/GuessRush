@@ -1,3 +1,99 @@
+// "Generate with AI" button on the New question form — drafts one full
+// question (via Claude, same call the bulk generate flow uses) for whichever
+// category is currently selected, then fills every other field on the form
+// in place. Does not touch video_prompt (Claude isn't asked for one — same
+// as the bulk review screen, an admin writes that by hand) or category_id
+// itself (the admin's own choice, used as the generation input).
+
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.ai-fill-question-btn');
+  if (!btn) return;
+  e.preventDefault();
+  runAiFillQuestion(btn);
+});
+
+async function runAiFillQuestion(btn) {
+  var form = btn.closest('form');
+  var categoryEl = form.querySelector(btn.dataset.categorySelector);
+  var errorEl = form.querySelector('.ai-fill-error');
+
+  if (errorEl) {
+    errorEl.textContent = '';
+    errorEl.classList.add('hidden');
+  }
+
+  if (!categoryEl || !categoryEl.value) {
+    if (errorEl) {
+      errorEl.textContent = 'Choose a category first.';
+      errorEl.classList.remove('hidden');
+    }
+    return;
+  }
+
+  var originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+
+  try {
+    var res = await fetch(btn.dataset.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category_id: categoryEl.value }),
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to generate a question.');
+
+    fillQuestionForm(form, data.question);
+  } catch (err) {
+    if (errorEl) {
+      errorEl.textContent = err.message;
+      errorEl.classList.remove('hidden');
+    } else {
+      alert(err.message);
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}
+
+function fillQuestionForm(form, q) {
+  function setValue(name, value) {
+    var el = form.querySelector('[name="' + name + '"]');
+    if (el && value !== undefined && value !== null) el.value = value;
+  }
+
+  var typeEl = form.querySelector('[name="type"]');
+  if (typeEl && q.type) {
+    typeEl.value = q.type;
+    typeEl.dispatchEvent(new Event('change'));
+  }
+  setValue('difficulty', q.difficulty);
+  setValue('timer_seconds', q.timer_seconds);
+  setValue('label', q.label);
+  setValue('prompt', q.prompt);
+  setValue('instruct_text', q.instruct_text);
+  setValue('media_placeholder', q.media_placeholder);
+  setValue('media_duration', q.media_duration);
+  setValue('emojis', q.emojis);
+
+  var clues = q.clues || [];
+  for (var i = 0; i < 6; i++) {
+    setValue('clue_' + i, clues[i] || '');
+  }
+
+  var options = q.options || [];
+  var optionImagePrompts = q.option_image_prompts || [];
+  for (var j = 0; j < 4; j++) {
+    setValue('option_' + j, options[j]);
+    setValue('option_image_prompt_' + j, optionImagePrompts[j]);
+  }
+  if (Number.isInteger(q.correct_index)) {
+    var radio = form.querySelector('[name="correct_index"][value="' + q.correct_index + '"]');
+    if (radio) radio.checked = true;
+  }
+}
+
 // Shared "Generate Audio" button behavior, used on the AI-review cards and the
 // manual question form (both New and Edit). Configured entirely via data-*
 // attributes so the same handler works for the different endpoints/DOM shapes:
