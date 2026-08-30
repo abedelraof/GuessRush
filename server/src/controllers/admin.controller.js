@@ -1209,6 +1209,11 @@ async function clearAllData(req, res) {
     await connection.beginTransaction();
     // Deletion order respects FK dependencies: each table here is deleted only
     // once every table that references it has already been fully cleared.
+    // matches references both players and game_sessions, so it must go before
+    // either of those — added along with Play With Friends, after this
+    // ordering was first written, so it's first here rather than alongside
+    // the other session-shaped tables below.
+    const [matchesResult] = await connection.query('DELETE FROM matches');
     const [answersResult] = await connection.query('DELETE FROM answers');
     const [dailyResult] = await connection.query('DELETE FROM daily_rush_attempts');
     const [achievementsResult] = await connection.query('DELETE FROM player_achievements');
@@ -1221,9 +1226,10 @@ async function clearAllData(req, res) {
     await renderSettingsWithError(req, res, 200, {
       dangerZoneSuccess:
         `Cleared all data — ${playersResult.affectedRows} player(s), ${questionsResult.affectedRows} question(s), ` +
-        `${sessionsResult.affectedRows} session(s), ${answersResult.affectedRows} answer(s), ` +
-        `${achievementsResult.affectedRows} achievement(s), ${missionsResult.affectedRows} mission record(s), ` +
-        `${dailyResult.affectedRows} daily-rush record(s). Categories and admin accounts were kept.`,
+        `${sessionsResult.affectedRows} session(s), ${matchesResult.affectedRows} match(es), ` +
+        `${answersResult.affectedRows} answer(s), ${achievementsResult.affectedRows} achievement(s), ` +
+        `${missionsResult.affectedRows} mission record(s), ${dailyResult.affectedRows} daily-rush record(s). ` +
+        `Categories and admin accounts were kept.`,
     });
   } catch (err) {
     await connection.rollback();
