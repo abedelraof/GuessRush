@@ -70,6 +70,10 @@ const COLUMN_MIGRATIONS = [
   // new modes don't have a single category.
   "ALTER TABLE game_sessions ADD COLUMN mode ENUM('single_category','quick_rush','chaos_rush','streak_rush','chill_rush') NOT NULL DEFAULT 'single_category' AFTER category_id",
   'ALTER TABLE game_sessions MODIFY COLUMN category_id INT NULL',
+  // Text-to-video question clips (type='video'), generated the same way as audio
+  // narration/option images — an admin-written prompt fed to an external AI service.
+  'ALTER TABLE questions ADD COLUMN video_prompt VARCHAR(2000) NULL AFTER audio_path',
+  'ALTER TABLE questions ADD COLUMN video_path VARCHAR(255) NULL AFTER video_prompt',
 ];
 
 // Backfills players' lifetime stats/records from their existing completed game_sessions/answers

@@ -2,6 +2,7 @@ const app = require('./app');
 const env = require('./config/env');
 const { sweepStaleTempAudio } = require('./utils/audioStorage');
 const { sweepStaleTempImages } = require('./utils/imageStorage');
+const { sweepStaleTempVideo } = require('./utils/videoStorage');
 const realtimeService = require('./services/realtime.service');
 const matchmakingService = require('./services/matchmaking.service');
 // Registers matchmaking.service.js's disconnect-forfeit handler with realtime.service.js
@@ -10,6 +11,7 @@ require('./services/matchProgress.service');
 
 sweepStaleTempAudio();
 sweepStaleTempImages();
+sweepStaleTempVideo();
 
 const server = app.listen(env.port, () => {
   console.log(`GuessRush API listening on port ${env.port}`);

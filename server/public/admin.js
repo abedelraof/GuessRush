@@ -202,3 +202,82 @@ async function runGenerateImage(btn) {
     btn.textContent = originalLabel;
   }
 }
+
+// "Generate Video" button — unlike audio/image, generation runs as an async
+// job (can take minutes to tens of minutes), so this submits once and then
+// polls the status endpoint on a timer until it reports 'done' or 'failed',
+// instead of a single request that waits for the result.
+//
+//   data-start-endpoint        URL to POST { prompt } to, queues the job
+//   data-status-endpoint-base  URL prefix — job id is appended to poll it
+//   data-scope                 selector for the closest ancestor to search within
+//   data-prompt-selector       textarea holding the video-generation prompt
+//   data-video-selector        the <video> element to point at the result
+//   data-error-selector        element to show a failure message in
+//   data-hidden-path-selector  (optional) hidden input to receive video_path
+//                               (temp-file flow only — absent for the direct/by-id endpoint)
+
+document.addEventListener('click', function (e) {
+  var btn = e.target.closest('.generate-video-btn');
+  if (!btn) return;
+  e.preventDefault();
+  runGenerateVideo(btn);
+});
+
+async function runGenerateVideo(btn) {
+  var scope = btn.closest(btn.dataset.scope || 'body');
+  var promptEl = scope.querySelector(btn.dataset.promptSelector);
+  var videoEl = scope.querySelector(btn.dataset.videoSelector);
+  var errorEl = btn.dataset.errorSelector ? scope.querySelector(btn.dataset.errorSelector) : null;
+  var hiddenPathEl = btn.dataset.hiddenPathSelector ? scope.querySelector(btn.dataset.hiddenPathSelector) : null;
+
+  if (errorEl) {
+    errorEl.textContent = '';
+    errorEl.classList.add('hidden');
+  }
+
+  var originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Queuing…';
+
+  try {
+    var startRes = await fetch(btn.dataset.startEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: promptEl ? promptEl.value : '' }),
+    });
+    var startData = await startRes.json();
+    if (!startRes.ok) throw new Error(startData.error || 'Failed to queue video generation.');
+
+    var data;
+    while (true) {
+      await sleep(3000);
+      var pollRes = await fetch(btn.dataset.statusEndpointBase + startData.job_id);
+      data = await pollRes.json();
+      if (!pollRes.ok) throw new Error(data.error || 'Failed to generate video.');
+      if (data.status === 'done') break;
+      btn.textContent =
+        data.status === 'queued' && data.queue_position
+          ? 'Queued (#' + data.queue_position + ')…'
+          : 'Generating… (can take a while)';
+    }
+
+    if (videoEl) {
+      videoEl.src = data.video_url;
+      videoEl.classList.remove('hidden');
+    }
+    if (hiddenPathEl && data.video_path) {
+      hiddenPathEl.value = data.video_path;
+    }
+  } catch (err) {
+    if (errorEl) {
+      errorEl.textContent = err.message;
+      errorEl.classList.remove('hidden');
+    } else {
+      alert(err.message);
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+}

@@ -32,6 +32,8 @@ router.post('/questions/generate', requireAdmin, asyncHandler(controller.generat
 router.post('/questions/generate/confirm', requireAdmin, asyncHandler(controller.generateConfirm));
 router.post('/questions/audio-preview', requireAdmin, asyncHandler(controller.audioPreview));
 router.post('/questions/image-preview', requireAdmin, asyncHandler(controller.imagePreview));
+router.post('/questions/video-preview', requireAdmin, asyncHandler(controller.videoPreviewStart));
+router.get('/questions/video-preview/:jobId', requireAdmin, asyncHandler(controller.videoPreviewStatus));
 
 router.get('/questions/import', requireAdmin, asyncHandler(controller.importForm));
 router.post('/questions/import', requireAdmin, asyncHandler(controller.importPreview));
@@ -46,6 +48,8 @@ router.post('/questions/:id', requireAdmin, asyncHandler(controller.updateQuesti
 router.post('/questions/:id/delete', requireAdmin, asyncHandler(controller.deleteQuestion));
 router.post('/questions/:id/audio', requireAdmin, asyncHandler(controller.generateAudioForQuestion));
 router.post('/questions/:id/image', requireAdmin, asyncHandler(controller.generateImageForQuestionOption));
+router.post('/questions/:id/video', requireAdmin, asyncHandler(controller.generateVideoForQuestionStart));
+router.get('/questions/:id/video/:jobId', requireAdmin, asyncHandler(controller.generateVideoForQuestionStatus));
 
 router.get('/settings', requireAdmin, asyncHandler(controller.settingsPage));
 router.post('/settings/account', requireAdmin, asyncHandler(controller.updateAccount));

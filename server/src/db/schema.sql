@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS questions (
   correct_index TINYINT NOT NULL,
   clues JSON NULL,
   audio_path VARCHAR(255) NULL,
+  video_prompt VARCHAR(2000) NULL,
+  video_path VARCHAR(255) NULL,
   timer_seconds SMALLINT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (category_id) REFERENCES categories(id)

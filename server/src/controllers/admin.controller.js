@@ -6,8 +6,10 @@ const settingsService = require('../services/settings.service');
 const claudeService = require('../services/claude.service');
 const ttsService = require('../services/tts.service');
 const imageService = require('../services/image.service');
+const videoService = require('../services/video.service');
 const audioStorage = require('../utils/audioStorage');
 const imageStorage = require('../utils/imageStorage');
+const videoStorage = require('../utils/videoStorage');
 const { levelForXp } = require('../services/progression.service');
 const { ACHIEVEMENTS } = require('../config/progression.config');
 const missionsService = require('../services/missions.service');
@@ -322,8 +324,8 @@ async function createQuestion(req, res) {
 
   const [result] = await pool.query(
     `INSERT INTO questions
-      (category_id, type, difficulty, label, prompt, instruct_text, media_placeholder, media_duration, emojis, options, option_image_prompts, correct_index, clues, timer_seconds)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (category_id, type, difficulty, label, prompt, instruct_text, media_placeholder, media_duration, emojis, options, option_image_prompts, correct_index, clues, timer_seconds, video_prompt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       body.category_id,
       body.type,
@@ -339,6 +341,7 @@ async function createQuestion(req, res) {
       correctIndex,
       clues && clues.length ? JSON.stringify(clues) : null,
       Number(body.timer_seconds) || 0,
+      body.video_prompt ? body.video_prompt.trim() : null,
     ]
   );
 
@@ -346,6 +349,13 @@ async function createQuestion(req, res) {
     const audioUrl = audioStorage.attachTempAudio(result.insertId, body.audio_path);
     if (audioUrl) {
       await pool.query('UPDATE questions SET audio_path = ? WHERE id = ?', [audioUrl, result.insertId]);
+    }
+  }
+
+  if (body.video_path) {
+    const videoUrl = videoStorage.attachTempVideo(result.insertId, body.video_path);
+    if (videoUrl) {
+      await pool.query('UPDATE questions SET video_path = ? WHERE id = ?', [videoUrl, result.insertId]);
     }
   }
 
@@ -393,7 +403,7 @@ async function updateQuestion(req, res) {
   await pool.query(
     `UPDATE questions SET
       category_id=?, type=?, difficulty=?, label=?, prompt=?, instruct_text=?, media_placeholder=?, media_duration=?, emojis=?,
-      options=?, option_image_prompts=?, correct_index=?, clues=?, timer_seconds=?
+      options=?, option_image_prompts=?, correct_index=?, clues=?, timer_seconds=?, video_prompt=?
      WHERE id=?`,
     [
       body.category_id,
@@ -410,6 +420,7 @@ async function updateQuestion(req, res) {
       correctIndex,
       clues && clues.length ? JSON.stringify(clues) : null,
       Number(body.timer_seconds) || 0,
+      body.video_prompt ? body.video_prompt.trim() : null,
       req.params.id,
     ]
   );
@@ -909,6 +920,83 @@ async function generateImageForQuestionOption(req, res) {
   }
 }
 
+// ---- AI video generation ----
+//
+// Unlike audio/image, this is a two-step submit-then-poll flow, not a single
+// request-blocks-until-done call — a video job can take minutes to 20-30
+// minutes (see video.service.js), far too long to hold one Express request
+// open. The browser (admin.js) submits once, then polls the status endpoint
+// on its own timer until it reports 'done' or 'failed'.
+
+/** Pre-save: queues a job, not tied to a question id yet. */
+async function videoPreviewStart(req, res) {
+  const { prompt } = req.body || {};
+  const apiKey = await settingsService.getSetting(TTS_KEY_SETTING);
+  if (!apiKey) {
+    return res.status(400).json({ error: 'Add a Custom AI Key in Settings first.' });
+  }
+  try {
+    const jobId = await videoService.submit({ apiKey, prompt });
+    res.json({ job_id: jobId });
+  } catch (err) {
+    res.status(502).json({ error: videoService.friendlyErrorMessage(err) });
+  }
+}
+
+/** Pre-save: one poll. On completion, saves to a temp file — caller stashes the
+ *  returned video_path in a hidden field, attached to the real row once it's inserted. */
+async function videoPreviewStatus(req, res) {
+  const apiKey = await settingsService.getSetting(TTS_KEY_SETTING);
+  if (!apiKey) {
+    return res.status(400).json({ error: 'Add a Custom AI Key in Settings first.' });
+  }
+  try {
+    const result = await videoService.poll({ apiKey, jobId: req.params.jobId });
+    if (result.status === 'done') {
+      const { videoPath, videoUrl } = videoStorage.saveTempVideo(result.buffer);
+      return res.json({ status: 'done', video_url: videoUrl, video_path: videoPath });
+    }
+    res.json({ status: result.status, queue_position: result.queuePosition });
+  } catch (err) {
+    res.status(502).json({ error: videoService.friendlyErrorMessage(err) });
+  }
+}
+
+/** Post-save: question already has an id — queues a job for it. */
+async function generateVideoForQuestionStart(req, res) {
+  const { prompt } = req.body || {};
+  const apiKey = await settingsService.getSetting(TTS_KEY_SETTING);
+  if (!apiKey) {
+    return res.status(400).json({ error: 'Add a Custom AI Key in Settings first.' });
+  }
+  try {
+    const jobId = await videoService.submit({ apiKey, prompt });
+    res.json({ job_id: jobId });
+  } catch (err) {
+    res.status(502).json({ error: videoService.friendlyErrorMessage(err) });
+  }
+}
+
+/** Post-save: one poll. On completion, writes straight to the question's permanent slot. */
+async function generateVideoForQuestionStatus(req, res) {
+  const questionId = Number(req.params.id);
+  const apiKey = await settingsService.getSetting(TTS_KEY_SETTING);
+  if (!apiKey) {
+    return res.status(400).json({ error: 'Add a Custom AI Key in Settings first.' });
+  }
+  try {
+    const result = await videoService.poll({ apiKey, jobId: req.params.jobId });
+    if (result.status === 'done') {
+      const videoUrl = videoStorage.saveVideoForQuestion(questionId, result.buffer);
+      await pool.query('UPDATE questions SET video_path = ? WHERE id = ?', [videoUrl, questionId]);
+      return res.json({ status: 'done', video_url: videoUrl });
+    }
+    res.json({ status: result.status, queue_position: result.queuePosition });
+  } catch (err) {
+    res.status(502).json({ error: videoService.friendlyErrorMessage(err) });
+  }
+}
+
 // ---- Settings ----
 
 async function settingsPage(req, res) {
@@ -1130,6 +1218,10 @@ module.exports = {
   generateAudioForQuestion,
   imagePreview,
   generateImageForQuestionOption,
+  videoPreviewStart,
+  videoPreviewStatus,
+  generateVideoForQuestionStart,
+  generateVideoForQuestionStatus,
   settingsPage,
   updateAccount,
   updateClaudeKey,
