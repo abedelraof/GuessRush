@@ -82,6 +82,7 @@ function fillQuestionForm(form, q) {
   setValue('media_placeholder', q.media_placeholder);
   setValue('media_duration', q.media_duration);
   setValue('emojis', q.emojis);
+  setValue('video_prompt', q.video_prompt);
 
   var clues = q.clues || [];
   for (var i = 0; i < 6; i++) {

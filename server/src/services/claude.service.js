@@ -26,6 +26,17 @@ const QuestionSchema = z.object({
   media_placeholder: z.string().nullable().describe('For type=image only: a short text description standing in for the (non-existent) image, e.g. "character portrait". Null for other types.'),
   media_duration: z.string().nullable().describe('For type=audio/video only: a fake clip duration like "0:12". Null for other types.'),
   emojis: z.string().nullable().describe('For type=emoji only: a short string of emoji encoding the answer, e.g. "❄️👸⛄🏰". Null for other types.'),
+  video_prompt: z
+    .string()
+    .nullable()
+    .describe(
+      'For type=video only: a text-to-video generation prompt for a short (5-8s) clip. It must evoke the ' +
+        'correct answer WITHOUT literally naming or spelling it out — describe a scene/subject/action a ' +
+        'viewer would recognize AS the answer, not the answer itself. One clear subject or action, not a ' +
+        'busy multi-element scene. Use cinematic camera/lighting language (e.g. "POV", "shallow depth of ' +
+        'field", "golden hour", "slow dolly in"). Explicitly state no on-screen text, no logos, no ' +
+        'subtitles, no title cards. Null for other types.'
+    ),
   options: z.array(z.string()).length(4).describe('Exactly 4 answer options'),
   option_image_prompts: z
     .array(z.string())
@@ -83,8 +94,11 @@ async function generateQuestions({ apiKey, workspaceId, categoryName, count, typ
       'You write trivia quiz questions for a mobile guessing game. Follow the schema exactly. ' +
       varietyInstructions.join(' ') +
       (varietyInstructions.length ? ' ' : '') +
-      'This app has no real media assets: for image/audio/video questions, media_placeholder/media_duration ' +
-      'are just short flavor-text stand-ins (e.g. "character portrait", "0:12"), never a real file or URL. ' +
+      'This app has no real image/audio media assets: for image/audio questions, media_placeholder/' +
+      'media_duration are just short flavor-text stand-ins (e.g. "character portrait", "0:12"), never a ' +
+      'real file or URL. For type=video, media_duration is likewise just flavor text, but video_prompt IS ' +
+      'used to generate a real clip — follow its schema description\'s rules exactly (evoke the answer, ' +
+      'never name it; no on-screen text/logos). ' +
       'Keep prompts and options concise, unambiguous, and appropriate for a general audience. ' +
       'Also write instruct_text for each question — a short tone/style instruction a text-to-speech engine ' +
       'will use to read the question aloud, tailored to that specific question and its type. ' +
