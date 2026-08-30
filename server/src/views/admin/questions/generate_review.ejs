@@ -98,6 +98,28 @@
                   <input type="text" name="questions[<%= q.key %>][media_duration]" class="field-input" value="<%= q.media_duration || '' %>">
                 </div>
 
+                <div class="type-fields hidden border-t border-slate-100 pt-5" data-types="video">
+                  <label class="field-label">Video prompt <span class="font-normal text-slate-400">(scene/motion description — describe the scene, not the answer)</span></label>
+                  <textarea name="questions[<%= q.key %>][video_prompt]" class="field-input text-sm q-video-prompt-input w-full h-28 resize-y"><%= q.video_prompt || '' %></textarea>
+                  <input type="hidden" name="questions[<%= q.key %>][video_path]" class="q-video-path-input" value="">
+                  <div class="flex items-center gap-3 mt-2">
+                    <button type="button"
+                      class="generate-video-btn btn-secondary"
+                      data-start-endpoint="/admin/questions/video-preview"
+                      data-status-endpoint-base="/admin/questions/video-preview/"
+                      data-scope=".question-card"
+                      data-prompt-selector=".q-video-prompt-input"
+                      data-video-selector=".q-video-player"
+                      data-error-selector=".q-video-error"
+                      data-hidden-path-selector=".q-video-path-input">
+                      🎬 Generate Video
+                    </button>
+                    <p class="q-video-error hidden text-xs text-rose-600"></p>
+                  </div>
+                  <p class="text-xs text-slate-400 mt-2">Can take several minutes — feel free to keep editing while it runs.</p>
+                  <video controls class="q-video-player hidden mt-2 w-full rounded-lg" preload="none"></video>
+                </div>
+
                 <div class="type-fields hidden border-t border-slate-100 pt-5" data-types="emoji">
                   <label class="field-label">Emojis</label>
                   <input type="text" name="questions[<%= q.key %>][emojis]" class="field-input" value="<%= q.emojis || '' %>">

@@ -664,8 +664,8 @@ async function generateConfirm(req, res) {
     const optionImagePrompts = collectOptionImagePromptsFromBody(row);
     const [result] = await pool.query(
       `INSERT INTO questions
-        (category_id, type, difficulty, label, prompt, instruct_text, media_placeholder, media_duration, emojis, options, option_image_prompts, correct_index, clues, timer_seconds)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (category_id, type, difficulty, label, prompt, instruct_text, media_placeholder, media_duration, emojis, options, option_image_prompts, correct_index, clues, timer_seconds, video_prompt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         categoryId,
         row.type,
@@ -681,6 +681,7 @@ async function generateConfirm(req, res) {
         correctIndex,
         clues && clues.length ? JSON.stringify(clues) : null,
         Number(row.timer_seconds) || 0,
+        row.video_prompt ? row.video_prompt.trim() : null,
       ]
     );
 
@@ -688,6 +689,13 @@ async function generateConfirm(req, res) {
       const audioUrl = audioStorage.attachTempAudio(result.insertId, row.audio_path);
       if (audioUrl) {
         await pool.query('UPDATE questions SET audio_path = ? WHERE id = ?', [audioUrl, result.insertId]);
+      }
+    }
+
+    if (row.video_path) {
+      const videoUrl = videoStorage.attachTempVideo(result.insertId, row.video_path);
+      if (videoUrl) {
+        await pool.query('UPDATE questions SET video_path = ? WHERE id = ?', [videoUrl, result.insertId]);
       }
     }
 
