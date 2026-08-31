@@ -109,7 +109,18 @@
         expecting: null,
         log: [{ ts: new Date().toISOString(), level: 'info', message: 'Starting run: ' + targetCount + ' question(s) across ' + batches.length + ' batch(es).' }],
       };
-      window.BulkAiRunner.startRun(run);
+
+      var startBtn = document.getElementById('start-btn');
+      startBtn.disabled = true;
+      startBtn.textContent = 'Starting…';
+
+      // startRun() ends in a real form.submit() (a full page navigation), which
+      // can happen before the browser gets a chance to paint the disabled/label
+      // change above — without this tick, the click can look like it did
+      // nothing until the new page suddenly appears.
+      setTimeout(function () {
+        window.BulkAiRunner.startRun(run);
+      }, 30);
     });
 
     document.getElementById('discard-run-btn').addEventListener('click', function () {
