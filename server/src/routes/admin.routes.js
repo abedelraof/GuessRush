@@ -30,6 +30,8 @@ router.post('/questions', requireAdmin, asyncHandler(controller.createQuestion))
 router.get('/questions/generate', requireAdmin, asyncHandler(controller.generateForm));
 router.post('/questions/generate', requireAdmin, asyncHandler(controller.generatePreview));
 router.post('/questions/generate/confirm', requireAdmin, asyncHandler(controller.generateConfirm));
+router.get('/questions/bulk-ai', requireAdmin, asyncHandler(controller.bulkAiForm));
+router.post('/questions/bulk-ai/draft', requireAdmin, asyncHandler(controller.bulkDraftQuestions));
 router.post('/questions/ai-fill', requireAdmin, asyncHandler(controller.aiFillQuestion));
 router.post('/questions/audio-preview', requireAdmin, asyncHandler(controller.audioPreview));
 router.post('/questions/image-preview', requireAdmin, asyncHandler(controller.imagePreview));
