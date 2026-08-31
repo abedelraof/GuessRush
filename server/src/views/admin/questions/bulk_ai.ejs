@@ -4,13 +4,13 @@
 <body>
   <div class="flex min-h-screen">
     <%- include('../../partials/sidebar', { active: 'questions' }) %>
-    <main class="flex-1 p-8 max-w-3xl">
+    <main class="flex-1 p-8 max-w-2xl">
       <a href="/admin/questions" class="text-sm text-slate-500 hover:text-slate-700">← Back to questions</a>
       <h1 class="text-2xl font-extrabold text-slate-900 mt-2 mb-1">🌙 Bulk AI Questions</h1>
       <p class="text-slate-500 text-sm mb-6">
-        Drafts, generates all AI content (audio, images, video), and saves questions in batches of
-        <%= maxGenerateCount %>, one after another, until the target count is reached. Runs entirely in
-        this tab — keep it open until it finishes.
+        Runs the same Generate → review → Save flow you'd do by hand, batch after batch, until the
+        target count is reached — using the real pages, so you can watch it happen. Keep this tab
+        open until it finishes; the status bar at the top tracks progress on every page.
       </p>
 
       <% if (!hasClaudeKey || !hasTtsKey) { %>
@@ -25,12 +25,9 @@
         </div>
       <% } %>
 
-      <div id="resume-banner" class="alert-error mb-5 hidden items-center justify-between gap-4">
-        <span id="resume-banner-text"></span>
-        <div class="flex gap-2 shrink-0">
-          <button type="button" id="resume-btn-banner" class="btn-primary">Resume</button>
-          <button type="button" id="discard-btn-banner" class="btn-secondary">Discard</button>
-        </div>
+      <div id="already-running-card" class="card p-6 hidden">
+        <p class="text-sm text-slate-700 mb-4">A run is already in progress or paused — use the status bar above to Pause, Resume, or Stop it.</p>
+        <button type="button" id="discard-run-btn" class="btn-danger">Discard this run</button>
       </div>
 
       <div id="start-section" class="card p-6">
@@ -64,419 +61,21 @@
           <button type="button" id="start-btn" class="btn-primary" <%= (!hasClaudeKey || !hasTtsKey) ? 'disabled' : '' %>>Start</button>
         </div>
       </div>
-
-      <div id="progress-section" class="hidden space-y-5">
-        <div class="card p-6">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-semibold text-slate-900" id="progress-text">0 / 0 saved</span>
-            <span class="text-xs text-slate-400" id="progress-batches-text"></span>
-          </div>
-          <div class="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
-            <div id="progress-bar-fill" class="h-full bg-brand-500" style="width: 0%"></div>
-          </div>
-          <div class="flex gap-3 mt-4">
-            <button type="button" id="pause-btn" class="btn-secondary">Pause</button>
-            <button type="button" id="stop-btn" class="btn-danger">Stop</button>
-          </div>
-        </div>
-
-        <div id="category-breakdown-card" class="card p-6 hidden">
-          <h2 class="text-sm font-bold text-slate-900 mb-3">By category</h2>
-          <div id="category-breakdown" class="space-y-1 text-sm text-slate-600"></div>
-        </div>
-
-        <div class="card p-6">
-          <h2 class="text-sm font-bold text-slate-900 mb-3">Log</h2>
-          <div id="run-log" class="text-xs font-mono text-slate-600 space-y-1 max-h-96 overflow-y-auto"></div>
-        </div>
-      </div>
     </main>
   </div>
 
   <script>
     var CATEGORIES = <%- JSON.stringify(categories) %>;
     var MAX_GENERATE_COUNT = <%= maxGenerateCount %>;
-    var STORAGE_KEY = 'quizo_bulk_ai_run_v1';
-    var LOG_CAP = 400;
 
-    // ---- localStorage persistence ----
-
-    function loadRun() {
-      try {
-        var raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return null;
-        var run = JSON.parse(raw);
-        if (run.version !== 1) return null;
-        return run;
-      } catch (e) {
-        return null;
-      }
-    }
-
-    function saveRun(run) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(run));
-    }
-
-    function clearRun() {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-
-    function log(run, level, message) {
-      run.log.push({ ts: new Date().toISOString(), level: level, message: message });
-      if (run.log.length > LOG_CAP) run.log.splice(0, run.log.length - LOG_CAP);
-      appendLogLine(level, message);
-    }
-
-    // ---- batch math ----
-
-    function splitIntoBatches(total, categoryId, categoryName) {
-      var batches = [];
-      var remaining = total;
-      while (remaining > 0) {
-        var size = Math.min(remaining, MAX_GENERATE_COUNT);
-        batches.push({ categoryId: categoryId, categoryName: categoryName, batchSize: size });
-        remaining -= size;
-      }
-      return batches;
-    }
-
-    function computeBatches(mode, categoryId, targetCount) {
-      if (mode === 'single') {
-        var cat = CATEGORIES.find(function (c) { return String(c.id) === String(categoryId); });
-        return splitIntoBatches(targetCount, cat.id, cat.name);
-      }
-      // split evenly across all categories
-      var k = CATEGORIES.length;
-      var base = Math.floor(targetCount / k);
-      var extra = targetCount % k;
-      var all = [];
-      CATEGORIES.forEach(function (c, i) {
-        var share = base + (i < extra ? 1 : 0);
-        if (share <= 0) return; // targetCount < number of categories — some get none, not a 0-size batch
-        all = all.concat(splitIntoBatches(share, c.id, c.name));
-      });
-      return all;
-    }
-
-    // ---- local mirror of generateConfirm's own validation (admin.controller.js) ----
-    // Not a change to that check — just so this page's own "saved" count is honest,
-    // since generateConfirm silently skips a malformed row with no signal back.
-
-    function localValidate(q) {
-      var types = ['image', 'audio', 'video', 'text', 'emoji', 'progressive'];
-      return (
-        types.indexOf(q.type) !== -1 &&
-        !!q.label &&
-        !!q.prompt &&
-        Array.isArray(q.options) &&
-        q.options.length === 4 &&
-        q.options.every(function (o) { return o && String(o).trim().length > 0; }) &&
-        Number.isInteger(q.correct_index) &&
-        q.correct_index >= 0 &&
-        q.correct_index <= 3
-      );
-    }
-
-    // ---- retry helper ----
-    // isRetryable gets the response status (or null for a network-level throw).
-    // A 400 (bad input/no key) is never retried — retrying can't fix those.
-
-    function sleep(ms) {
-      return new Promise(function (resolve) { setTimeout(resolve, ms); });
-    }
-
-    async function withRetry(fn, maxAttempts, backoffsMs) {
-      var lastError = null;
-      for (var attempt = 0; attempt < maxAttempts; attempt++) {
-        try {
-          var result = await fn();
-          if (result.ok) return result;
-          if (result.status === 400) return result; // terminal, don't retry
-          lastError = result;
-        } catch (e) {
-          lastError = { ok: false, status: null, data: { error: e.message } };
-        }
-        if (attempt < maxAttempts - 1) await sleep(backoffsMs[Math.min(attempt, backoffsMs.length - 1)]);
-      }
-      return lastError;
-    }
-
-    // ---- API calls — same endpoints the existing review screen/buttons already use ----
-
-    async function apiJson(url, method, body) {
-      try {
-        var res = await fetch(url, {
-          method: method,
-          headers: body ? { 'Content-Type': 'application/json' } : undefined,
-          body: body ? JSON.stringify(body) : undefined,
-        });
-        var data = {};
-        try { data = await res.json(); } catch (e) { /* non-JSON response */ }
-        return { ok: res.ok, status: res.status, data: data };
-      } catch (e) {
-        return { ok: false, status: null, data: { error: e.message } };
-      }
-    }
-
-    function draftBatch(categoryId, count) {
-      return withRetry(function () {
-        return apiJson('/admin/questions/bulk-ai/draft', 'POST', { category_id: categoryId, count: count });
-      }, 3, [2000, 5000, 10000]);
-    }
-
-    function audioPreview(text, instructText) {
-      return withRetry(function () {
-        return apiJson('/admin/questions/audio-preview', 'POST', { text: text, instruct_text: instructText });
-      }, 2, [1500]);
-    }
-
-    function imagePreview(prompt) {
-      return withRetry(function () {
-        return apiJson('/admin/questions/image-preview', 'POST', { prompt: prompt });
-      }, 2, [1500]);
-    }
-
-    function videoPreviewStart(prompt) {
-      return withRetry(function () {
-        return apiJson('/admin/questions/video-preview', 'POST', { prompt: prompt });
-      }, 2, [1500]);
-    }
-
-    function videoPreviewStatus(jobId) {
-      return apiJson('/admin/questions/video-preview/' + encodeURIComponent(jobId), 'GET', null);
-    }
-
-    // Same shape/encoding the existing review form already POSTs — urlencoded,
-    // not JSON, so this rides the body-parser's existing 15mb urlencoded limit
-    // (generateConfirm itself is completely unmodified).
-    function confirmBatch(categoryId, questionsByKey) {
-      var params = new URLSearchParams();
-      params.set('category_id', categoryId);
-      Object.keys(questionsByKey).forEach(function (key) {
-        var row = questionsByKey[key];
-        Object.keys(row).forEach(function (field) {
-          params.set('questions[' + key + '][' + field + ']', row[field]);
-        });
-      });
-      return withRetry(function () {
-        return new Promise(async function (resolve) {
-          try {
-            var res = await fetch('/admin/questions/generate/confirm', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: params.toString(),
-              redirect: 'manual', // generateConfirm redirects on success; opaque redirect still means it worked
-            });
-            resolve({ ok: res.status === 0 || res.ok, status: res.status, data: {} });
-          } catch (e) {
-            resolve({ ok: false, status: null, data: { error: e.message } });
-          }
-        });
-      }, 2, [3000]);
-    }
-
-    function toConfirmRow(q, assets) {
-      var row = {
-        type: q.type,
-        difficulty: q.difficulty,
-        label: q.label,
-        prompt: q.prompt,
-        instruct_text: q.instruct_text || '',
-        media_placeholder: q.media_placeholder || '',
-        media_duration: q.media_duration || '',
-        emojis: q.emojis || '',
-        correct_index: q.correct_index,
-        timer_seconds: q.timer_seconds || 0,
-        video_prompt: q.video_prompt || '',
-        audio_path: assets.audioPath || '',
-        video_path: assets.videoPath || '',
-      };
-      for (var i = 0; i < 4; i++) {
-        row['option_' + i] = q.options[i];
-        row['option_image_prompt_' + i] = (q.option_image_prompts && q.option_image_prompts[i]) || '';
-        row['option_image_path_' + i] = assets.optionImagePaths[i] || '';
-      }
-      if (q.type === 'progressive' && Array.isArray(q.clues)) {
-        for (var c = 0; c < q.clues.length; c++) row['clue_' + c] = q.clues[c];
-      }
-      return row;
-    }
-
-    // ---- per-batch processing ----
-
-    async function processBatch(run, batch) {
-      batch.status = 'in_progress';
-      saveRun(run);
-      log(run, 'info', 'Batch ' + (batch.index + 1) + '/' + run.batches.length + ' (' + batch.categoryName + ', ' + batch.batchSize + ' questions): drafting…');
-
-      var draft = await draftBatch(batch.categoryId, batch.batchSize);
-      if (!draft.ok) {
-        batch.status = 'failed';
-        batch.error = (draft.data && draft.data.error) || 'draft failed';
-        run.totals.failedBatches++;
-        log(run, 'error', 'Batch ' + (batch.index + 1) + ' draft failed: ' + batch.error);
-        return;
-      }
-
-      var drafted = draft.data.questions || [];
-      var validRows = drafted.filter(localValidate);
-      if (validRows.length < drafted.length) {
-        log(run, 'warn', (drafted.length - validRows.length) + ' drafted question(s) failed local validation and will be skipped.');
-      }
-
-      var pendingVideoJobs = [];
-
-      for (var i = 0; i < validRows.length; i++) {
-        var q = validRows[i];
-        var assets = { audioPath: null, videoPath: null, optionImagePaths: [null, null, null, null] };
-        q._assets = assets;
-
-        if (q.prompt) {
-          var audioRes = await audioPreview(q.prompt, q.instruct_text || '');
-          if (audioRes.ok && audioRes.data.audio_path) assets.audioPath = audioRes.data.audio_path;
-          else log(run, 'warn', 'Narration audio failed for "' + q.label + '" — saving without it.');
-        }
-
-        for (var oi = 0; oi < 4; oi++) {
-          var prompt = q.option_image_prompts && q.option_image_prompts[oi];
-          if (!prompt) continue;
-          var imgRes = await imagePreview(prompt);
-          if (imgRes.ok && imgRes.data.image_path) assets.optionImagePaths[oi] = imgRes.data.image_path;
-          else log(run, 'warn', 'Option ' + (oi + 1) + ' image failed for "' + q.label + '".');
-        }
-
-        if (q.type === 'video' && q.video_prompt) {
-          var videoStart = await videoPreviewStart(q.video_prompt);
-          if (videoStart.ok && videoStart.data.job_id) {
-            pendingVideoJobs.push({ q: q, jobId: videoStart.data.job_id, consecutiveErrors: 0 });
-            log(run, 'info', 'Video queued for "' + q.label + '".');
-          } else {
-            log(run, 'warn', 'Video submit failed for "' + q.label + '" — saving without it.');
-          }
-        }
-      }
-
-      // Drain video jobs after the rest of the batch's assets are done, so the
-      // GPU queue stays fed by all of this batch's jobs back-to-back instead of
-      // waiting on one at a time.
-      while (pendingVideoJobs.length > 0) {
-        log(run, 'info', pendingVideoJobs.length + ' video job(s) still running for this batch…');
-        await sleep(3000);
-        for (var vi = pendingVideoJobs.length - 1; vi >= 0; vi--) {
-          var job = pendingVideoJobs[vi];
-          var poll = await videoPreviewStatus(job.jobId);
-          if (poll.ok && poll.data.status === 'done') {
-            job.q._assets.videoPath = poll.data.video_path;
-            log(run, 'info', 'Video done for "' + job.q.label + '".');
-            pendingVideoJobs.splice(vi, 1);
-          } else if (poll.ok) {
-            job.consecutiveErrors = 0; // queued/running — fine, keep waiting
-          } else {
-            job.consecutiveErrors++;
-            if (job.consecutiveErrors >= 3) {
-              log(run, 'warn', 'Video failed for "' + job.q.label + '" after repeated errors — saving without it.');
-              pendingVideoJobs.splice(vi, 1);
-            }
-          }
-        }
-      }
-
-      var questionsByKey = {};
-      validRows.forEach(function (q, idx) {
-        questionsByKey[idx] = toConfirmRow(q, q._assets);
-      });
-
-      var confirm = await confirmBatch(batch.categoryId, questionsByKey);
-      if (confirm.ok) {
-        batch.status = 'done';
-        batch.savedCount = validRows.length;
-        run.totals.savedSoFar += validRows.length;
-        log(run, 'info', 'Batch ' + (batch.index + 1) + ' saved (' + validRows.length + ' questions).');
-      } else {
-        batch.status = 'failed';
-        batch.error = 'save failed';
-        run.totals.failedBatches++;
-        log(run, 'error', 'Batch ' + (batch.index + 1) + ' save failed — questions were drafted/generated but not saved.');
-      }
-    }
-
-    // ---- run loop ----
-
-    var running = false;
-
-    async function runLoop(run) {
-      running = true;
-      while (run.currentBatchIndex < run.batches.length) {
-        if (run.runState !== 'running') {
-          saveRun(run);
-          running = false;
-          return;
-        }
-        await processBatch(run, run.batches[run.currentBatchIndex]);
-        run.currentBatchIndex++;
-        saveRun(run);
-        renderProgress(run);
-      }
-      run.runState = 'completed';
-      saveRun(run);
-      renderProgress(run);
-      log(run, 'info', 'Run complete.');
-      running = false;
-    }
-
-    // ---- UI ----
-
-    function appendLogLine(level, message) {
-      var el = document.getElementById('run-log');
-      var line = document.createElement('div');
-      line.className = level === 'error' ? 'text-rose-600' : level === 'warn' ? 'text-amber-600' : 'text-slate-600';
-      line.textContent = new Date().toLocaleTimeString() + '  ' + message;
-      el.appendChild(line);
-      while (el.childNodes.length > LOG_CAP) el.removeChild(el.firstChild);
-      el.scrollTop = el.scrollHeight;
-    }
-
-    function renderProgress(run) {
-      document.getElementById('progress-text').textContent =
-        run.totals.savedSoFar + ' / ' + run.targetCount + ' saved' + (run.totals.failedBatches ? ' (' + run.totals.failedBatches + ' batch(es) failed)' : '');
-      document.getElementById('progress-batches-text').textContent =
-        'Batch ' + Math.min(run.currentBatchIndex + 1, run.batches.length) + ' / ' + run.batches.length;
-      var pct = run.batches.length ? Math.round((run.currentBatchIndex / run.batches.length) * 100) : 0;
-      document.getElementById('progress-bar-fill').style.width = pct + '%';
-
-      if (run.mode === 'split') {
-        var byCategory = {};
-        run.batches.forEach(function (b) {
-          if (!byCategory[b.categoryName]) byCategory[b.categoryName] = { saved: 0, target: 0 };
-          byCategory[b.categoryName].target += b.batchSize;
-          if (b.status === 'done') byCategory[b.categoryName].saved += b.savedCount || 0;
-        });
-        var el = document.getElementById('category-breakdown');
-        el.innerHTML = '';
-        Object.keys(byCategory).forEach(function (name) {
-          var row = document.createElement('div');
-          row.textContent = name + ': ' + byCategory[name].saved + ' / ' + byCategory[name].target;
-          el.appendChild(row);
-        });
-        document.getElementById('category-breakdown-card').classList.remove('hidden');
-      }
-    }
-
-    function showStartSection() {
-      document.getElementById('start-section').classList.remove('hidden');
-      document.getElementById('progress-section').classList.add('hidden');
-      document.getElementById('resume-banner').classList.add('hidden');
-    }
-
-    function showProgressSection(run) {
-      document.getElementById('start-section').classList.add('hidden');
-      document.getElementById('progress-section').classList.remove('hidden');
-      document.getElementById('resume-banner').classList.add('hidden');
-      run.log.forEach(function (entry) { appendLogLine(entry.level, entry.message); });
-      renderProgress(run);
-    }
-
-    // ---- wiring ----
+    // Waits for DOMContentLoaded — not just for the elements above (already
+    // parsed by the time this inline script runs), but because this code
+    // calls into window.BulkAiRunner, which is defined by the deferred
+    // bulk-ai-runner.js. Deferred scripts only run once parsing finishes,
+    // which is *after* a plain inline script like this one would otherwise
+    // run — so without this wrapper, window.BulkAiRunner could still be
+    // undefined here.
+    document.addEventListener('DOMContentLoaded', function () {
 
     document.getElementById('mode-single').addEventListener('change', syncModeUI);
     document.getElementById('mode-split').addEventListener('change', syncModeUI);
@@ -484,6 +83,7 @@
       var isSingle = document.getElementById('mode-single').checked;
       document.getElementById('category-select-wrap').classList.toggle('hidden', !isSingle);
     }
+    syncModeUI();
 
     document.getElementById('start-btn').addEventListener('click', function () {
       var targetCount = Number(document.getElementById('target-count').value);
@@ -494,101 +94,39 @@
       var mode = document.getElementById('mode-single').checked ? 'single' : 'split';
       var categoryId = mode === 'single' ? document.getElementById('category-select').value : null;
 
-      var batches = computeBatches(mode, categoryId, targetCount).map(function (b, i) {
-        return {
-          index: i,
-          categoryId: b.categoryId,
-          categoryName: b.categoryName,
-          batchSize: b.batchSize,
-          status: 'pending',
-          savedCount: null,
-          error: null,
-        };
-      });
+      var batches = window.BulkAiRunner.computeBatches(mode, categoryId, targetCount, CATEGORIES, MAX_GENERATE_COUNT)
+        .map(function (b, i) { b.index = i; b.error = null; return b; });
 
       var run = {
-        version: 1,
+        version: 2,
         startedAt: new Date().toISOString(),
         targetCount: targetCount,
         mode: mode,
         categoryId: categoryId,
         batches: batches,
         currentBatchIndex: 0,
-        totals: { savedSoFar: 0, failedBatches: 0 },
         runState: 'running',
-        log: [],
+        expecting: null,
+        log: [{ ts: new Date().toISOString(), level: 'info', message: 'Starting run: ' + targetCount + ' question(s) across ' + batches.length + ' batch(es).' }],
       };
-      saveRun(run);
-      showProgressSection(run);
-      log(run, 'info', 'Starting run: ' + targetCount + ' question(s) across ' + batches.length + ' batch(es).');
-      saveRun(run);
-      runLoop(run);
+      window.BulkAiRunner.startRun(run);
     });
 
-    document.getElementById('pause-btn').addEventListener('click', function () {
-      var run = loadRun();
-      if (!run) return;
-      run.runState = 'paused';
-      saveRun(run);
-      log(run, 'info', 'Pausing after the current batch finishes…');
-      saveRun(run);
-      document.getElementById('pause-btn').disabled = true;
-      document.getElementById('pause-btn').textContent = 'Pausing…';
+    document.getElementById('discard-run-btn').addEventListener('click', function () {
+      if (!confirm('Discard this run? Already-saved questions are not affected.')) return;
+      window.BulkAiRunner.clearRun();
+      window.location.reload();
     });
 
-    document.getElementById('stop-btn').addEventListener('click', function () {
-      if (!confirm('Stop this run? Already-saved questions are kept — you can start a new run for the rest later.')) return;
-      var run = loadRun();
-      if (!run) return;
-      run.runState = 'stopped';
-      saveRun(run);
-      log(run, 'info', 'Stopping after the current batch finishes…');
-      saveRun(run);
-    });
-
-    document.getElementById('resume-btn-banner').addEventListener('click', function () {
-      var run = loadRun();
-      if (!run) return;
-      run.runState = 'running';
-      saveRun(run);
-      showProgressSection(run);
-      document.getElementById('pause-btn').disabled = false;
-      document.getElementById('pause-btn').textContent = 'Pause';
-      if (!running) runLoop(run);
-    });
-
-    document.getElementById('discard-btn-banner').addEventListener('click', function () {
-      if (!confirm('Discard this run\'s progress tracking? Already-saved questions are not affected.')) return;
-      clearRun();
-      showStartSection();
-    });
-
-    // ---- initial load ----
-
-    (function init() {
-      syncModeUI();
-      var run = loadRun();
-      if (!run) {
-        showStartSection();
-        return;
+    (function initPage() {
+      var run = window.BulkAiRunner.loadRun();
+      if (run && run.runState !== 'completed') {
+        document.getElementById('start-section').classList.add('hidden');
+        document.getElementById('already-running-card').classList.remove('hidden');
       }
-      if (run.runState === 'completed') {
-        showProgressSection(run);
-        document.getElementById('pause-btn').classList.add('hidden');
-        document.getElementById('stop-btn').classList.add('hidden');
-        return;
-      }
-      var banner = document.getElementById('resume-banner');
-      var text = document.getElementById('resume-banner-text');
-      if (run.runState === 'running') {
-        text.textContent = 'A run was interrupted mid-batch (browser closed/crashed) — ' + run.totals.savedSoFar + ' / ' + run.targetCount + ' saved so far.';
-      } else {
-        text.textContent = 'You have a paused run — ' + run.totals.savedSoFar + ' / ' + run.targetCount + ' saved so far.';
-      }
-      banner.classList.remove('hidden');
-      banner.classList.add('flex');
-      document.getElementById('start-section').classList.add('hidden');
     })();
+
+    }); // DOMContentLoaded
   </script>
 </body>
 </html>

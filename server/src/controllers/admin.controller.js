@@ -652,39 +652,11 @@ async function bulkAiForm(req, res) {
   });
 }
 
-/** JSON sibling of generatePreview — same generateQuestions call, but returns the
- *  drafted batch as data instead of rendering generate_review.ejs, so the bulk
- *  page's orchestration loop can consume it directly. Does not save anything;
- *  saving still goes through the existing, unmodified generateConfirm. */
-async function bulkDraftQuestions(req, res) {
-  const { category_id: categoryIdRaw, count: countRaw } = req.body || {};
-  const categoryId = Number(categoryIdRaw);
-  const count = Number(countRaw);
-
-  const [categories] = await pool.query('SELECT * FROM categories ORDER BY name');
-  const category = categories.find((c) => c.id === categoryId);
-  if (!category) {
-    return res.status(400).json({ error: 'Choose a category first.' });
-  }
-  if (!Number.isInteger(count) || count < 1 || count > MAX_GENERATE_COUNT) {
-    return res.status(400).json({ error: `Enter a number of questions between 1 and ${MAX_GENERATE_COUNT}.` });
-  }
-
-  const [apiKey, workspaceId] = await Promise.all([
-    settingsService.getSetting(CLAUDE_KEY_SETTING),
-    settingsService.getSetting(CLAUDE_WORKSPACE_SETTING),
-  ]);
-  if (!apiKey) {
-    return res.status(400).json({ error: 'Add a Claude API key in Settings first.' });
-  }
-
-  try {
-    const questions = await claudeService.generateQuestions({ apiKey, workspaceId, categoryName: category.name, count });
-    res.json({ questions });
-  } catch (err) {
-    res.status(502).json({ error: claudeService.friendlyErrorMessage(err) });
-  }
-}
+// Batch drafting/saving for the bulk-ai journey goes through the real,
+// unmodified generateForm/generatePreview/generateConfirm — the bulk page
+// (bulk-ai-runner.js) just navigates the browser through those exact same
+// endpoints a human would use, one batch at a time, instead of a separate
+// backend orchestration loop.
 
 async function generateConfirm(req, res) {
   const body = req.body || {};
@@ -1319,7 +1291,6 @@ module.exports = {
   generatePreview,
   generateConfirm,
   bulkAiForm,
-  bulkDraftQuestions,
   importForm,
   importPreview,
   importConfirm,

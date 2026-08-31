@@ -170,13 +170,16 @@ async function runGenerateAudio(btn) {
   }
 }
 
-// "Generate AI Content" — walks every audio/image generate button on the review
-// screen, in the page's top-to-bottom order, and runs each one exactly like a
-// real click: scrolled into view first so the admin can watch it happen, then
-// awaited to completion before moving to the next. Never skips a button because
-// of a failure — runGenerateAudio/runGenerateImage already catch their own
-// errors internally (they show the inline error span and resolve normally), so
-// one failure just leaves that clip/image blank and the run continues.
+// "Generate AI Content" — walks every audio/image/video generate button on the
+// review screen, in the page's top-to-bottom order, and runs each one exactly
+// like a real click: scrolled into view first so the admin can watch it happen,
+// then awaited to completion before moving to the next. Never skips a button
+// because of a failure — runGenerateAudio/runGenerateImage/runGenerateVideo
+// already catch their own errors internally (they show the inline error span
+// and resolve normally), so one failure just leaves that clip/image/video blank
+// and the run continues. Video jobs can take minutes each — walking one
+// unattended overnight (see bulk-ai-runner.js) is exactly the case that's slow
+// but fine to leave running.
 
 document.addEventListener('click', function (e) {
   var btn = e.target.closest('.generate-all-btn');
@@ -194,7 +197,7 @@ function sleep(ms) {
 async function runGenerateAllContent(triggerBtn) {
   var statusEl = document.getElementById('generate-all-status');
   var targets = Array.prototype.slice.call(
-    document.querySelectorAll('.generate-audio-btn, .generate-image-btn')
+    document.querySelectorAll('.generate-audio-btn, .generate-image-btn, .generate-video-btn')
   );
 
   if (targets.length === 0) {
@@ -220,6 +223,8 @@ async function runGenerateAllContent(triggerBtn) {
 
     if (btn.classList.contains('generate-audio-btn')) {
       await runGenerateAudio(btn);
+    } else if (btn.classList.contains('generate-video-btn')) {
+      await runGenerateVideo(btn);
     } else {
       await runGenerateImage(btn);
     }
