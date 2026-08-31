@@ -178,18 +178,21 @@
         run.runState = 'paused';
         logEvent(run, 'info', 'Pausing after the current batch finishes…');
       }));
+      controls.appendChild(makeBtn('Stop', function () {
+        if (!confirm('Stop this run? The current batch will still finish and save — already-saved questions are kept, and you can start a new run for the rest later.')) return;
+        run.runState = 'stopped';
+        logEvent(run, 'info', 'Stopping after the current batch finishes…');
+      }));
     } else if (run.runState === 'paused' || run.runState === 'stopped') {
       controls.appendChild(makeBtn('Resume', function () {
         run.runState = 'running';
         logEvent(run, 'info', 'Resuming…');
         goToNextBatch(run);
       }));
-    }
-    if (run.runState !== 'completed') {
-      controls.appendChild(makeBtn('Stop', function () {
-        if (!confirm('Stop this run? Already-saved questions are kept — you can start a new run for the rest later.')) return;
-        run.runState = 'stopped';
-        logEvent(run, 'info', 'Stopped.');
+      controls.appendChild(makeBtn('Dismiss', function () {
+        if (!confirm('Discard this run? Already-saved questions are not affected.')) return;
+        clearRun();
+        renderBar(null);
       }));
     } else {
       controls.appendChild(makeBtn('Dismiss', function () {
