@@ -100,6 +100,11 @@
 
   function goToNextBatch(run) {
     var batch = run.batches[run.currentBatchIndex];
+    // Logged here, on the page we're about to navigate away from, so the bar
+    // still shows "activity" through the page load + the pre-generation
+    // pause on the next page — otherwise that gap looks like a halt.
+    logEvent(run, 'info', 'Starting batch ' + (run.currentBatchIndex + 1) + '/' + run.batches.length +
+      ' (' + batch.categoryName + ', ' + batch.batchSize + ' question' + (batch.batchSize === 1 ? '' : 's') + ')…');
     run.expecting = 'review';
     saveRun(run);
     submitHiddenForm('/admin/questions/generate', {
@@ -111,6 +116,18 @@
   function startRun(run) {
     saveRun(run);
     goToNextBatch(run);
+  }
+
+  // A short recap of where the run stands — shown whenever it actually halts
+  // (stops or pauses at a batch boundary), so the admin isn't left staring at
+  // a bar that just stopped updating with no explanation.
+  function runSummary(run) {
+    var saved = run.batches.filter(function (b) { return b.status === 'done'; });
+    var failed = run.batches.filter(function (b) { return b.status === 'failed'; }).length;
+    var remaining = run.batches.length - saved.length - failed;
+    var savedQuestions = saved.reduce(function (sum, b) { return sum + b.batchSize; }, 0);
+    return saved.length + '/' + run.batches.length + ' batches saved (~' + savedQuestions + ' questions), ' +
+      failed + ' failed, ' + remaining + ' remaining.';
   }
 
   // ---- status bar (injected on every page) ----
@@ -268,8 +285,7 @@
     }
 
     if (run.runState !== 'running') {
-      saveRun(run);
-      renderBar(run);
+      logEvent(run, 'info', (run.runState === 'stopped' ? 'Stopped' : 'Paused') + ' — ' + runSummary(run));
       return; // paused/stopped — wait for Resume rather than retrying immediately
     }
     saveRun(run);
@@ -292,8 +308,7 @@
       return;
     }
     if (run.runState !== 'running') {
-      saveRun(run);
-      renderBar(run);
+      logEvent(run, 'info', (run.runState === 'stopped' ? 'Stopped' : 'Paused') + ' — ' + runSummary(run));
       return; // paused/stopped between batches — wait for Resume
     }
     saveRun(run);
