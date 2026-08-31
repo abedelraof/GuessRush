@@ -196,9 +196,9 @@
         logEvent(run, 'info', 'Pausing after the current batch finishes…');
       }));
       controls.appendChild(makeBtn('Stop', function () {
-        if (!confirm('Stop this run? The current batch will still finish and save — already-saved questions are kept, and you can start a new run for the rest later.')) return;
+        if (!confirm('Stop this run? The batch currently generating will be interrupted and not saved — already-saved questions are kept, and you can start a new run for the rest later.')) return;
         run.runState = 'stopped';
-        logEvent(run, 'info', 'Stopping after the current batch finishes…');
+        logEvent(run, 'info', 'Stopping — interrupting the current batch…');
       }));
     } else if (run.runState === 'paused' || run.runState === 'stopped') {
       controls.appendChild(makeBtn('Resume', function () {
@@ -241,8 +241,26 @@
     logEvent(run, 'info', 'Batch ' + (run.currentBatchIndex + 1) + '/' + run.batches.length + ' (' + batch.categoryName + '): drafted, generating content…');
 
     await sleep(800); // let the admin see the drafted questions land before the walk starts
+
+    // Checked before every item (and every ~3s inside a video's poll) so Stop
+    // interrupts the CURRENT batch's content generation within seconds,
+    // instead of only taking effect once all ~15 items are done — video
+    // items especially can otherwise leave Stop waiting many minutes. Pause
+    // deliberately does NOT abort mid-batch — it still finishes and saves
+    // the batch already in flight, only holding off on starting the next one
+    // (matches the Pause button's "after the current batch finishes" wording).
+    var notStopped = function () { return run.runState !== 'stopped'; };
+
     var allBtn = document.getElementById('generate-all-btn');
-    if (allBtn) await runGenerateAllContent(allBtn);
+    var completed = true;
+    if (notStopped() && allBtn) {
+      completed = await runGenerateAllContent(allBtn, notStopped);
+    }
+
+    if (!completed || run.runState === 'stopped') {
+      logEvent(run, 'info', 'Stopped mid-batch — this batch was not saved and will be redrafted from scratch on Resume. ' + runSummary(run));
+      return;
+    }
 
     logEvent(run, 'info', 'Content generation done — saving…');
     run.expecting = 'list';

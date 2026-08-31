@@ -194,7 +194,12 @@ function sleep(ms) {
   });
 }
 
-async function runGenerateAllContent(triggerBtn) {
+// `shouldContinue`, if given, is checked before every item (and inside a
+// video's poll loop — see runGenerateVideo) so a caller like bulk-ai-runner.js
+// can interrupt the walk within seconds of the admin clicking Stop, rather
+// than only between whole batches. Returns true if every item was reached,
+// false if the walk was cut short.
+async function runGenerateAllContent(triggerBtn, shouldContinue) {
   var statusEl = document.getElementById('generate-all-status');
   var targets = Array.prototype.slice.call(
     document.querySelectorAll('.generate-audio-btn, .generate-image-btn, .generate-video-btn')
@@ -202,13 +207,20 @@ async function runGenerateAllContent(triggerBtn) {
 
   if (targets.length === 0) {
     if (statusEl) statusEl.textContent = 'Nothing to generate.';
-    return;
+    return true;
   }
 
   var originalLabel = triggerBtn.textContent;
   triggerBtn.disabled = true;
 
   for (var i = 0; i < targets.length; i++) {
+    if (shouldContinue && !shouldContinue()) {
+      triggerBtn.disabled = false;
+      triggerBtn.textContent = originalLabel;
+      if (statusEl) statusEl.textContent = 'Stopped — ' + i + ' of ' + targets.length + ' generated.';
+      return false;
+    }
+
     var btn = targets[i];
     // A card/option may have been discarded since the run started — nothing to click.
     if (!document.body.contains(btn)) continue;
@@ -224,7 +236,7 @@ async function runGenerateAllContent(triggerBtn) {
     if (btn.classList.contains('generate-audio-btn')) {
       await runGenerateAudio(btn);
     } else if (btn.classList.contains('generate-video-btn')) {
-      await runGenerateVideo(btn);
+      await runGenerateVideo(btn, shouldContinue);
     } else {
       await runGenerateImage(btn);
     }
@@ -235,6 +247,7 @@ async function runGenerateAllContent(triggerBtn) {
   triggerBtn.disabled = false;
   triggerBtn.textContent = originalLabel;
   if (statusEl) statusEl.textContent = 'Done — ' + targets.length + ' generated.';
+  return true;
 }
 
 // Shared "Generate Image" button behavior, one per answer option. Same shape as
@@ -332,7 +345,11 @@ document.addEventListener('click', function (e) {
   runGenerateVideo(btn);
 });
 
-async function runGenerateVideo(btn) {
+// `shouldContinue`, if given, is polled every ~3s alongside the job's own
+// status poll — video jobs are by far the slowest single item (can run
+// minutes), so without this a Stop click could still be stuck waiting on
+// whichever video happened to be mid-generation.
+async function runGenerateVideo(btn, shouldContinue) {
   var scope = btn.closest(btn.dataset.scope || 'body');
   var promptEl = scope.querySelector(btn.dataset.promptSelector);
   var videoEl = scope.querySelector(btn.dataset.videoSelector);
@@ -358,8 +375,13 @@ async function runGenerateVideo(btn) {
     if (!startRes.ok) throw new Error(startData.error || 'Failed to queue video generation.');
 
     var data;
+    var aborted = false;
     while (true) {
       await sleep(3000);
+      if (shouldContinue && !shouldContinue()) {
+        aborted = true; // the job may still finish server-side; we just stop waiting on it here
+        break;
+      }
       var pollRes = await fetch(btn.dataset.statusEndpointBase + startData.job_id);
       data = await pollRes.json();
       if (!pollRes.ok) throw new Error(data.error || 'Failed to generate video.');
@@ -370,12 +392,14 @@ async function runGenerateVideo(btn) {
           : 'Generating… (can take a while)';
     }
 
-    if (videoEl) {
-      videoEl.src = data.video_url;
-      videoEl.classList.remove('hidden');
-    }
-    if (hiddenPathEl && data.video_path) {
-      hiddenPathEl.value = data.video_path;
+    if (!aborted) {
+      if (videoEl) {
+        videoEl.src = data.video_url;
+        videoEl.classList.remove('hidden');
+      }
+      if (hiddenPathEl && data.video_path) {
+        hiddenPathEl.value = data.video_path;
+      }
     }
   } catch (err) {
     if (errorEl) {
