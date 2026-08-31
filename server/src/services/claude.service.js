@@ -5,6 +5,11 @@ const { zodOutputFormat } = require('@anthropic-ai/sdk/helpers/zod');
 const QUESTION_TYPES = ['image', 'audio', 'video', 'text', 'emoji', 'progressive'];
 const DIFFICULTIES = ['easy', 'medium', 'hard', 'extreme'];
 
+const DEFAULT_MODEL = 'claude-opus-5';
+// Offered in Settings — highest quality first, fastest last. Admin-configurable
+// because a faster/cheaper model can matter a lot for a many-batch bulk run.
+const AVAILABLE_MODELS = ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5-20251001'];
+
 const QuestionSchema = z.object({
   type: z.enum(QUESTION_TYPES),
   difficulty: z
@@ -66,7 +71,7 @@ const GenerateResponseSchema = z.object({
  * rejected with "anthropic-workspace-id is required...". A classic
  * workspace-scoped key doesn't need this at all, so it's optional here.
  */
-async function generateQuestions({ apiKey, workspaceId, categoryName, count, type, difficulty }) {
+async function generateQuestions({ apiKey, workspaceId, categoryName, count, type, difficulty, model }) {
   const client = new Anthropic({
     apiKey,
     defaultHeaders: workspaceId ? { 'anthropic-workspace-id': workspaceId } : undefined,
@@ -88,7 +93,7 @@ async function generateQuestions({ apiKey, workspaceId, categoryName, count, typ
   if (difficulty) userContent += ` Every question must have difficulty "${difficulty}".`;
 
   const response = await client.messages.parse({
-    model: 'claude-opus-5',
+    model: AVAILABLE_MODELS.includes(model) ? model : DEFAULT_MODEL,
     max_tokens: 16000,
     system:
       'You write trivia quiz questions for a mobile guessing game. Follow the schema exactly. ' +
@@ -142,4 +147,4 @@ function friendlyErrorMessage(err) {
   return err.message || 'Failed to generate questions.';
 }
 
-module.exports = { generateQuestions, friendlyErrorMessage, QUESTION_TYPES };
+module.exports = { generateQuestions, friendlyErrorMessage, QUESTION_TYPES, DEFAULT_MODEL, AVAILABLE_MODELS };

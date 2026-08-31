@@ -129,6 +129,45 @@
       </section>
 
       <section>
+        <h2 class="text-base font-bold text-slate-900 mb-3">AI generation</h2>
+        <div class="card p-6">
+          <p class="text-sm text-slate-500 mb-4">
+            Controls how the "Generate with AI" and Bulk AI Questions flows draft questions.
+          </p>
+          <% if (generationError) { %>
+            <div class="alert-error mb-4"><span>⚠️</span><span><%= generationError %></span></div>
+          <% } %>
+          <% if (generationSuccess) { %>
+            <div class="alert-success mb-4"><span>✓</span><span><%= generationSuccess %></span></div>
+          <% } %>
+
+          <form method="post" action="/admin/settings/generation" class="space-y-4">
+            <div>
+              <label class="field-label">Claude model</label>
+              <select class="field-select max-w-sm" name="claude_model">
+                <% availableModels.forEach(function(m) { %>
+                  <option value="<%= m %>" <%= m === claudeModel ? 'selected' : '' %>>
+                    <%= m %><%= m === 'claude-opus-5' ? ' (highest quality, slowest)' : m === 'claude-haiku-4-5-20251001' ? ' (fastest, lower quality)' : ' (balanced)' %>
+                  </option>
+                <% }); %>
+              </select>
+            </div>
+
+            <div>
+              <label class="field-label">Bulk AI Questions batch size</label>
+              <p class="text-xs text-slate-500 mb-2">
+                Questions drafted per Claude call in an unattended bulk run. Smaller batches draft
+                faster and keep the run visibly moving; larger batches make fewer, longer calls.
+              </p>
+              <input class="field-input max-w-xs" type="number" name="bulk_ai_batch_size" min="1" max="<%= maxGenerateCount %>" value="<%= bulkAiBatchSize %>">
+            </div>
+
+            <button class="btn-primary" type="submit">Save</button>
+          </form>
+        </div>
+      </section>
+
+      <section>
         <h2 class="text-base font-bold text-red-700 mb-3">Danger zone</h2>
         <div class="card p-6 border-2 border-red-200">
           <p class="text-sm text-slate-500 mb-4">

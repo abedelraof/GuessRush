@@ -59,6 +59,7 @@ router.post('/settings/claude-key', requireAdmin, asyncHandler(controller.update
 router.post('/settings/claude-key/remove', requireAdmin, asyncHandler(controller.removeClaudeKey));
 router.post('/settings/tts-key', requireAdmin, asyncHandler(controller.updateTtsKey));
 router.post('/settings/tts-key/remove', requireAdmin, asyncHandler(controller.removeTtsKey));
+router.post('/settings/generation', requireAdmin, asyncHandler(controller.updateGenerationSettings));
 router.post('/settings/clear-data', requireAdmin, asyncHandler(controller.clearAllData));
 
 module.exports = router;

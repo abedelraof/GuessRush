@@ -22,15 +22,27 @@ const CLAUDE_KEY_SETTING = 'anthropic_api_key';
 // Only needed for "identity-linked" Claude API keys — see claude.service.js.
 const CLAUDE_WORKSPACE_SETTING = 'anthropic_workspace_id';
 const TTS_KEY_SETTING = 'tts_api_key';
+const CLAUDE_MODEL_SETTING = 'anthropic_model';
+const BULK_AI_BATCH_SIZE_SETTING = 'bulk_ai_batch_size';
 const MAX_GENERATE_COUNT = 15;
-// Bulk AI Questions batches are deliberately smaller than the manual form's
-// cap above — each batch is one blocking Claude call, and a smaller batch
-// drafts faster, so an unattended run keeps moving through more, shorter
-// waits instead of fewer, longer ones.
-const BULK_AI_BATCH_SIZE = 5;
+// Default (and ceiling) for the Bulk AI Questions batch size when nothing's
+// configured in Settings — deliberately smaller than the manual form's cap
+// above, since each batch is one blocking Claude call and a smaller batch
+// drafts faster, keeping an unattended run visibly moving.
+const DEFAULT_BULK_AI_BATCH_SIZE = 5;
 
 function parseJsonField(value) {
   return typeof value === 'string' ? JSON.parse(value) : value;
+}
+
+async function getClaudeModel() {
+  const raw = await settingsService.getSetting(CLAUDE_MODEL_SETTING);
+  return claudeService.AVAILABLE_MODELS.includes(raw) ? raw : claudeService.DEFAULT_MODEL;
+}
+
+async function getBulkAiBatchSize() {
+  const raw = Number(await settingsService.getSetting(BULK_AI_BATCH_SIZE_SETTING));
+  return Number.isInteger(raw) && raw >= 1 && raw <= MAX_GENERATE_COUNT ? raw : DEFAULT_BULK_AI_BATCH_SIZE;
 }
 
 function issueAdminCookie(res, admin) {
@@ -619,7 +631,8 @@ async function generatePreview(req, res) {
 
   let suggestions;
   try {
-    suggestions = await claudeService.generateQuestions({ apiKey, workspaceId, categoryName: category.name, count });
+    const model = await getClaudeModel();
+    suggestions = await claudeService.generateQuestions({ apiKey, workspaceId, categoryName: category.name, count, model });
   } catch (err) {
     const message = claudeService.friendlyErrorMessage(err);
     return res.status(502).render('admin/questions/generate', { admin: req.admin, categories, error: message });
@@ -651,7 +664,7 @@ async function bulkAiForm(req, res) {
   res.render('admin/questions/bulk_ai', {
     admin: req.admin,
     categories,
-    maxGenerateCount: BULK_AI_BATCH_SIZE,
+    maxGenerateCount: await getBulkAiBatchSize(),
     hasClaudeKey: Boolean(claudeKey),
     hasTtsKey: Boolean(ttsKey),
   });
@@ -898,6 +911,7 @@ async function aiFillQuestion(req, res) {
   }
 
   try {
+    const model = await getClaudeModel();
     const [question] = await claudeService.generateQuestions({
       apiKey,
       workspaceId,
@@ -905,6 +919,7 @@ async function aiFillQuestion(req, res) {
       count: 1,
       type: QUESTION_TYPES.includes(type) ? type : undefined,
       difficulty: DIFFICULTIES.includes(difficulty) ? difficulty : undefined,
+      model,
     });
     if (!question) throw new Error('Claude did not return a question. Try again.');
     res.json({ question });
@@ -1080,10 +1095,12 @@ async function generateVideoForQuestionStatus(req, res) {
 async function settingsPage(req, res) {
   const [rows] = await pool.query('SELECT email, display_name FROM players WHERE id = ?', [req.admin.id]);
   const account = rows[0];
-  const [claudeKey, workspaceId, ttsKey] = await Promise.all([
+  const [claudeKey, workspaceId, ttsKey, claudeModel, bulkAiBatchSize] = await Promise.all([
     settingsService.getSetting(CLAUDE_KEY_SETTING),
     settingsService.getSetting(CLAUDE_WORKSPACE_SETTING),
     settingsService.getSetting(TTS_KEY_SETTING),
+    getClaudeModel(),
+    getBulkAiBatchSize(),
   ]);
   res.render('admin/settings', {
     admin: req.admin,
@@ -1091,12 +1108,18 @@ async function settingsPage(req, res) {
     maskedClaudeKey: settingsService.maskKey(claudeKey),
     workspaceId,
     maskedTtsKey: settingsService.maskKey(ttsKey),
+    claudeModel,
+    availableModels: claudeService.AVAILABLE_MODELS,
+    bulkAiBatchSize,
+    maxGenerateCount: MAX_GENERATE_COUNT,
     accountError: null,
     accountSuccess: null,
     claudeKeyError: null,
     claudeKeySuccess: null,
     ttsKeyError: null,
     ttsKeySuccess: null,
+    generationError: null,
+    generationSuccess: null,
     dangerZoneError: null,
     dangerZoneSuccess: null,
   });
@@ -1104,10 +1127,12 @@ async function settingsPage(req, res) {
 
 async function renderSettingsWithError(req, res, status, overrides) {
   const [rows] = await pool.query('SELECT email, display_name FROM players WHERE id = ?', [req.admin.id]);
-  const [claudeKey, workspaceId, ttsKey] = await Promise.all([
+  const [claudeKey, workspaceId, ttsKey, claudeModel, bulkAiBatchSize] = await Promise.all([
     settingsService.getSetting(CLAUDE_KEY_SETTING),
     settingsService.getSetting(CLAUDE_WORKSPACE_SETTING),
     settingsService.getSetting(TTS_KEY_SETTING),
+    getClaudeModel(),
+    getBulkAiBatchSize(),
   ]);
   res.status(status).render('admin/settings', {
     admin: req.admin,
@@ -1115,12 +1140,18 @@ async function renderSettingsWithError(req, res, status, overrides) {
     maskedClaudeKey: settingsService.maskKey(claudeKey),
     workspaceId,
     maskedTtsKey: settingsService.maskKey(ttsKey),
+    claudeModel,
+    availableModels: claudeService.AVAILABLE_MODELS,
+    bulkAiBatchSize,
+    maxGenerateCount: MAX_GENERATE_COUNT,
     accountError: null,
     accountSuccess: null,
     claudeKeyError: null,
     claudeKeySuccess: null,
     ttsKeyError: null,
     ttsKeySuccess: null,
+    generationError: null,
+    generationSuccess: null,
     dangerZoneError: null,
     dangerZoneSuccess: null,
     ...overrides,
@@ -1206,6 +1237,26 @@ async function updateTtsKey(req, res) {
 async function removeTtsKey(req, res) {
   await settingsService.deleteSetting(TTS_KEY_SETTING);
   await renderSettingsWithError(req, res, 200, { ttsKeySuccess: 'Custom AI key removed.' });
+}
+
+async function updateGenerationSettings(req, res) {
+  const { claude_model: model, bulk_ai_batch_size: batchSizeRaw } = req.body || {};
+
+  if (!claudeService.AVAILABLE_MODELS.includes(model)) {
+    return renderSettingsWithError(req, res, 400, { generationError: 'Choose a valid model.' });
+  }
+  const batchSize = Number(batchSizeRaw);
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > MAX_GENERATE_COUNT) {
+    return renderSettingsWithError(req, res, 400, {
+      generationError: `Batch size must be a whole number between 1 and ${MAX_GENERATE_COUNT}.`,
+    });
+  }
+
+  await Promise.all([
+    settingsService.setSetting(CLAUDE_MODEL_SETTING, model),
+    settingsService.setSetting(BULK_AI_BATCH_SIZE_SETTING, String(batchSize)),
+  ]);
+  await renderSettingsWithError(req, res, 200, { generationSuccess: 'Generation settings saved.' });
 }
 
 const CLEAR_DATA_CONFIRM_PHRASE = 'DELETE ALL DATA';
@@ -1314,5 +1365,6 @@ module.exports = {
   removeClaudeKey,
   updateTtsKey,
   removeTtsKey,
+  updateGenerationSettings,
   clearAllData,
 };
