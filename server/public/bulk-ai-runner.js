@@ -244,8 +244,8 @@
 
     // Checked before every item (and every ~3s inside a video's poll) so Stop
     // interrupts the CURRENT batch's content generation within seconds,
-    // instead of only taking effect once all ~15 items are done — video
-    // items especially can otherwise leave Stop waiting many minutes. Pause
+    // instead of only taking effect once every item in the batch is done —
+    // video items especially can otherwise leave Stop waiting many minutes. Pause
     // deliberately does NOT abort mid-batch — it still finishes and saves
     // the batch already in flight, only holding off on starting the next one
     // (matches the Pause button's "after the current batch finishes" wording).

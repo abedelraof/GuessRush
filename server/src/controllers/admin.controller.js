@@ -23,6 +23,11 @@ const CLAUDE_KEY_SETTING = 'anthropic_api_key';
 const CLAUDE_WORKSPACE_SETTING = 'anthropic_workspace_id';
 const TTS_KEY_SETTING = 'tts_api_key';
 const MAX_GENERATE_COUNT = 15;
+// Bulk AI Questions batches are deliberately smaller than the manual form's
+// cap above — each batch is one blocking Claude call, and a smaller batch
+// drafts faster, so an unattended run keeps moving through more, shorter
+// waits instead of fewer, longer ones.
+const BULK_AI_BATCH_SIZE = 5;
 
 function parseJsonField(value) {
   return typeof value === 'string' ? JSON.parse(value) : value;
@@ -646,7 +651,7 @@ async function bulkAiForm(req, res) {
   res.render('admin/questions/bulk_ai', {
     admin: req.admin,
     categories,
-    maxGenerateCount: MAX_GENERATE_COUNT,
+    maxGenerateCount: BULK_AI_BATCH_SIZE,
     hasClaudeKey: Boolean(claudeKey),
     hasTtsKey: Boolean(ttsKey),
   });
