@@ -22,6 +22,26 @@ class AuthService {
     return Player.fromJson(res['player'] as Map<String, dynamic>);
   }
 
+  /// Auto-provisions an anonymous account so the app can open straight to the
+  /// home screen and play solo without ever showing a login form.
+  Future<Player> guest() async {
+    final res = await _api.post('/api/auth/guest');
+    await _api.setToken(res['token'] as String);
+    return Player.fromJson(res['player'] as Map<String, dynamic>);
+  }
+
+  /// Converts the current guest session into a real account in place, so
+  /// whatever was played as a guest (XP, level, stats) carries over.
+  Future<Player> upgrade({required String email, required String password, required String displayName}) async {
+    final res = await _api.post('/api/auth/upgrade', {
+      'email': email,
+      'password': password,
+      'display_name': displayName,
+    });
+    await _api.setToken(res['token'] as String);
+    return Player.fromJson(res['player'] as Map<String, dynamic>);
+  }
+
   Future<Player?> fetchStoredSession() async {
     final token = await _api.token;
     if (token == null) return null;

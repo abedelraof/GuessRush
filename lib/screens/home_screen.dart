@@ -21,6 +21,11 @@ class HomeScreen extends StatelessWidget {
     // this same background.png as the app-wide default, so Home just
     // inherits it.
     return SafeArea(
+      // _BottomNav reserves the bottom inset itself (its own inner
+      // SafeArea(top: false)), so its dark background can extend flush to
+      // the screen edge like a normal tab bar — reserving it here too would
+      // double up, leaving a gap of plain background below the bar instead.
+      bottom: false,
       // Three rows: header and footer are each sized to their own
       // content (fixed); the middle row is wrapped in Expanded so it
       // gets whatever space is left over.
@@ -72,6 +77,7 @@ class HomeScreen extends StatelessWidget {
           _BottomNav(
             onTapEvents: controller.goToEvents,
             onTapStats: controller.goToProfile,
+            onTapSettings: controller.goToSettings,
           ),
         ],
       ),
@@ -343,12 +349,10 @@ class _Tagline extends StatelessWidget {
   }
 }
 
-/// No multiplayer/friends system exists yet — inert, same precedent as the
-/// other not-yet-built tiles below (Categories/How to Play previously,
-/// Rewards/Shop now). Styled to match those `_IconTile`s below it (tinted
-/// background/border/glow in one accent color, same 16-radius corners)
-/// instead of the plain frosted-glass look it had before, so it reads as
-/// part of the same button family rather than a one-off.
+/// Styled to match the `_IconTile`s below it (tinted background/border/glow
+/// in one accent color, same 16-radius corners) instead of the plain
+/// frosted-glass look it had before, so it reads as part of the same button
+/// family rather than a one-off.
 class _PlayWithFriendsButton extends StatelessWidget {
   final VoidCallback onTap;
 
@@ -514,8 +518,9 @@ class _IconTile extends StatelessWidget {
 class _BottomNav extends StatelessWidget {
   final VoidCallback onTapEvents;
   final VoidCallback onTapStats;
+  final VoidCallback onTapSettings;
 
-  const _BottomNav({required this.onTapEvents, required this.onTapStats});
+  const _BottomNav({required this.onTapEvents, required this.onTapStats, required this.onTapSettings});
 
   @override
   Widget build(BuildContext context) {
@@ -556,7 +561,11 @@ class _BottomNav extends StatelessWidget {
                 label: 'STATS',
                 onTap: onTapStats,
               ),
-              const _NavItem(icon: Icons.settings_rounded, label: 'SETTINGS'),
+              _NavItem(
+                icon: Icons.settings_rounded,
+                label: 'SETTINGS',
+                onTap: onTapSettings,
+              ),
             ],
           ),
         ),

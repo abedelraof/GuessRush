@@ -12,6 +12,7 @@ import 'pick_rush_screen.dart';
 import 'play_with_friends_screen.dart';
 import 'profile_screen.dart';
 import 'results_screen.dart';
+import 'settings_screen.dart';
 import 'signup_screen.dart';
 
 class QuizAppShell extends StatefulWidget {
@@ -110,6 +111,11 @@ class _QuizAppShellState extends State<QuizAppShell> {
       case AppScreen.events:
         return EventsScreen(
           key: const ValueKey('events'),
+          controller: controller,
+        );
+      case AppScreen.settings:
+        return SettingsScreen(
+          key: const ValueKey('settings'),
           controller: controller,
         );
     }

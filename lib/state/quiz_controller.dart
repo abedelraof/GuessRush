@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' hide Category;
 import 'package:flutter/painting.dart';
-import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../models/category.dart';
 import '../models/daily_rush_status.dart';
@@ -17,8 +16,11 @@ import '../models/question.dart';
 import '../services/api_client.dart';
 import '../services/audio_player_service.dart';
 import '../services/auth_service.dart';
+import '../services/haptics_service.dart';
 import '../services/match_socket_service.dart';
+import '../services/notification_service.dart';
 import '../services/quiz_api.dart';
+import '../services/settings_service.dart';
 
 enum AppScreen {
   boot,
@@ -34,6 +36,7 @@ enum AppScreen {
   profile,
   leaderboard,
   events,
+  settings,
 }
 
 /// Which sub-flow matchWaitingScreen is showing — set by whichever
@@ -97,6 +100,7 @@ class QuizController extends ChangeNotifier {
   final QuizApi quizApi;
   final Stream<MatchEvent> _matchEvents;
   final bool _usesRealMatchSocket;
+  final SettingsService _settings = SettingsService();
 
   AppScreen screen = AppScreen.boot;
 
@@ -245,14 +249,34 @@ class QuizController extends ChangeNotifier {
 
   // ---- Boot / Auth ----
 
+  /// True once a real account is needed — i.e. there's no player yet, or the
+  /// current one is just an auto-provisioned guest. Solo play never checks
+  /// this; only Play With Friends does (see [goToPlayWithFriends]).
+  bool get needsAccountForFriends => player?.isGuest ?? true;
+
+  // Where to return to after login/signup completes, when it was reached via
+  // an account gate (Play With Friends, or "Create Account" from Settings)
+  // rather than head-on.
+  AppScreen? _pendingScreenAfterAuth;
+
   Future<void> bootstrap() async {
     screen = AppScreen.boot;
     notifyListeners();
+    await _settings.load();
+    HapticsService.instance.enabled = _settings.hapticsEnabled;
     final existing = await authService.fetchStoredSession();
     if (existing != null) {
       player = existing;
       await _loadCategoriesAndGoHome();
-    } else {
+      return;
+    }
+    // No session yet: play as a guest immediately rather than asking to log
+    // in — an account is only needed later, if they try Play With Friends.
+    try {
+      player = await authService.guest();
+      await _loadCategoriesAndGoHome();
+    } on ApiException catch (e) {
+      authError = e.message;
       screen = AppScreen.login;
       notifyListeners();
     }
@@ -280,6 +304,7 @@ class QuizController extends ChangeNotifier {
       player = await authService.login(email: email, password: password);
       authLoading = false;
       await _loadCategoriesAndGoHome();
+      _continueAfterAuthGate();
     } on ApiException catch (e) {
       authLoading = false;
       authError = e.message;
@@ -292,13 +317,15 @@ class QuizController extends ChangeNotifier {
     authError = null;
     notifyListeners();
     try {
-      player = await authService.signup(
-        email: email,
-        password: password,
-        displayName: displayName,
-      );
+      // Currently a guest? Upgrade that same account in place so whatever
+      // was played as a guest (XP, level, stats) carries over, instead of
+      // abandoning it for a brand-new player row.
+      player = (player?.isGuest ?? false)
+          ? await authService.upgrade(email: email, password: password, displayName: displayName)
+          : await authService.signup(email: email, password: password, displayName: displayName);
       authLoading = false;
       await _loadCategoriesAndGoHome();
+      _continueAfterAuthGate();
     } on ApiException catch (e) {
       authLoading = false;
       authError = e.message;
@@ -318,14 +345,51 @@ class QuizController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Entry point for the "Create Account" CTA on the Settings screen (a
+  /// guest upgrading in place) — same signup screen as everywhere else, just
+  /// remembers to return to Settings afterward instead of Home.
+  void goToSignupFromSettings() {
+    _pendingScreenAfterAuth = AppScreen.settings;
+    goToSignup();
+  }
+
+  /// Backs out of a login/signup screen reached via an account gate, without
+  /// completing it — back to home, same guest session as before.
+  void cancelAuthGate() {
+    authError = null;
+    _pendingScreenAfterAuth = null;
+    screen = AppScreen.home;
+    notifyListeners();
+  }
+
+  void _continueAfterAuthGate() {
+    final target = _pendingScreenAfterAuth;
+    _pendingScreenAfterAuth = null;
+    if (target == AppScreen.playWithFriends) {
+      goToPlayWithFriends();
+    } else if (target == AppScreen.settings) {
+      goToSettings();
+    }
+  }
+
   Future<void> logout() async {
     _clearAllTimers();
     AudioPlayerService.instance.stop();
     await authService.logout();
     player = null;
     categories = [];
-    screen = AppScreen.login;
+    screen = AppScreen.boot;
     notifyListeners();
+    // Land back on home as a fresh guest, same as first launch, rather than
+    // forcing a login screen the app no longer opens with.
+    try {
+      player = await authService.guest();
+      await _loadCategoriesAndGoHome();
+    } on ApiException catch (e) {
+      authError = e.message;
+      screen = AppScreen.login;
+      notifyListeners();
+    }
   }
 
   // ---- Timers ----
@@ -395,7 +459,7 @@ class QuizController extends ChangeNotifier {
     try {
       // Waits for the clip to actually finish (not just start) so the
       // countdown tick only kicks in once the narrator stops speaking.
-      await AudioPlayerService.instance.playUrl(url);
+      if (_settings.narrationEnabled) await AudioPlayerService.instance.playUrl(url);
     } catch (e) {
       audioError = 'Audio failed to play: $e';
       notifyListeners();
@@ -430,11 +494,11 @@ class QuizController extends ChangeNotifier {
 
   void _scheduleTick() {
     if (answered || timeLeft <= 0) return;
-    AudioPlayerService.instance.playTick();
+    if (_settings.soundEffectsEnabled) AudioPlayerService.instance.playTick();
     final Duration interval;
     if (timeLeft <= 3) {
       interval = const Duration(milliseconds: 250);
-      HapticFeedback.selectionClick(); // final-seconds urgency cue
+      HapticsService.instance.selectionClick(); // final-seconds urgency cue
     } else if (timeLeft <= 5) {
       interval = const Duration(milliseconds: 500);
     } else {
@@ -519,15 +583,15 @@ class QuizController extends ChangeNotifier {
 
       if (result.timedOut) {
         feedback = AnswerFeedback.timeout;
-        HapticFeedback.heavyImpact();
+        HapticsService.instance.heavyImpact();
       } else if (result.isCorrect) {
         feedback = AnswerFeedback.correct;
         lastIsMilestone
-            ? HapticFeedback.mediumImpact()
-            : HapticFeedback.lightImpact();
+            ? HapticsService.instance.mediumImpact()
+            : HapticsService.instance.lightImpact();
       } else {
         feedback = AnswerFeedback.wrong;
-        HapticFeedback.mediumImpact();
+        HapticsService.instance.mediumImpact();
       }
       screen = AppScreen.feedback;
       _prefetchNextQuestionAssets();
@@ -674,7 +738,7 @@ class QuizController extends ChangeNotifier {
           newlyUnlockedAchievements.isNotEmpty ||
           isNewDailyBest ||
           newlyCompletedMissions.isNotEmpty) {
-        HapticFeedback.heavyImpact();
+        HapticsService.instance.heavyImpact();
       }
       notifyListeners();
       loadProfile(); // lifetime XP/level/records/achievements just changed — refresh for later screens
@@ -696,6 +760,13 @@ class QuizController extends ChangeNotifier {
   // ---- Play With Friends ----
 
   void goToPlayWithFriends() {
+    if (needsAccountForFriends) {
+      authError = null;
+      _pendingScreenAfterAuth = AppScreen.playWithFriends;
+      screen = AppScreen.login;
+      notifyListeners();
+      return;
+    }
     matchError = null;
     screen = AppScreen.playWithFriends;
     notifyListeners();
@@ -938,6 +1009,65 @@ class QuizController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ---- Settings ----
+
+  bool get soundEffectsEnabled => _settings.soundEffectsEnabled;
+  bool get narrationEnabled => _settings.narrationEnabled;
+  bool get hapticsEnabled => _settings.hapticsEnabled;
+  bool get dailyRushReminderEnabled => _settings.dailyRushReminderEnabled;
+  int get reminderHour => _settings.reminderHour;
+  int get reminderMinute => _settings.reminderMinute;
+
+  void goToSettings() {
+    screen = AppScreen.settings;
+    notifyListeners();
+  }
+
+  Future<void> setSoundEffectsEnabled(bool value) async {
+    await _settings.setSoundEffectsEnabled(value);
+    notifyListeners();
+  }
+
+  Future<void> setNarrationEnabled(bool value) async {
+    await _settings.setNarrationEnabled(value);
+    notifyListeners();
+  }
+
+  Future<void> setHapticsEnabled(bool value) async {
+    await _settings.setHapticsEnabled(value);
+    HapticsService.instance.enabled = value;
+    notifyListeners();
+  }
+
+  /// Turning the reminder on requests OS notification permission first — if
+  /// denied, the setting stays off (nothing was persisted as true, so the
+  /// toggle just reflects reality on the next rebuild).
+  Future<void> setDailyRushReminderEnabled(bool value) async {
+    if (value) {
+      final granted = await NotificationService.instance.requestPermission();
+      if (!granted) {
+        notifyListeners();
+        return;
+      }
+      await NotificationService.instance.scheduleDailyReminder(
+        _settings.reminderHour,
+        _settings.reminderMinute,
+      );
+    } else {
+      await NotificationService.instance.cancelDailyReminder();
+    }
+    await _settings.setDailyRushReminderEnabled(value);
+    notifyListeners();
+  }
+
+  Future<void> setDailyRushReminderTime(int hour, int minute) async {
+    await _settings.setReminderTime(hour, minute);
+    if (_settings.dailyRushReminderEnabled) {
+      await NotificationService.instance.scheduleDailyReminder(hour, minute);
+    }
+    notifyListeners();
+  }
+
   void goHome() {
     _clearAllTimers();
     AudioPlayerService.instance.stop();
@@ -1098,7 +1228,7 @@ class QuizController extends ChangeNotifier {
       final result = await quizApi.useRemoveOne(sessionId!);
       removedOptionIndex = result.removedOptionIndex;
       removeOneUsesRemaining = result.usesRemaining;
-      HapticFeedback.selectionClick();
+      HapticsService.instance.selectionClick();
     } on ApiException catch (e) {
       errorMessage = e.message;
     } finally {

@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS players (
   password_hash VARCHAR(255) NOT NULL,
   display_name VARCHAR(64) NOT NULL,
   role ENUM('player','admin') NOT NULL DEFAULT 'player',
+  -- Auto-provisioned on first launch so solo play never requires signing in —
+  -- a real players row with a generated email/password the player never sees.
+  -- Cleared by /api/auth/upgrade (in place, preserving this row's progress)
+  -- if they later create a real account to unlock Play With Friends.
+  is_guest TINYINT(1) NOT NULL DEFAULT 0,
   -- Persistent progression (Phase 3) — server-authoritative, updated only by
   -- applyRushProgression() inside the /finish transaction. level is a cached
   -- projection of lifetime_xp (see progression.service.js's XP curve),

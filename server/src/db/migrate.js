@@ -74,6 +74,9 @@ const COLUMN_MIGRATIONS = [
   // narration/option images — an admin-written prompt fed to an external AI service.
   'ALTER TABLE questions ADD COLUMN video_prompt VARCHAR(2000) NULL AFTER audio_path',
   'ALTER TABLE questions ADD COLUMN video_path VARCHAR(255) NULL AFTER video_prompt',
+  // Guest accounts (home screen no longer requires signing in): auto-provisioned
+  // real players rows, flagged so the client knows to gate Play With Friends.
+  'ALTER TABLE players ADD COLUMN is_guest TINYINT(1) NOT NULL DEFAULT 0 AFTER role',
 ];
 
 // Backfills players' lifetime stats/records from their existing completed game_sessions/answers
