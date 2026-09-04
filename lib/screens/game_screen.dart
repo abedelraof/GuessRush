@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import '../models/question.dart';
 import '../state/quiz_controller.dart';
 import '../theme/colors.dart';
+import '../theme/round_background.dart';
 import '../theme/text_styles.dart';
 import '../widgets/animated_counter.dart';
 import '../widgets/audio_question.dart';
 import '../widgets/double_down_overlay.dart';
-import '../widgets/feedback_overlay.dart';
 import '../widgets/image_question.dart';
 import '../widgets/momentum_meter.dart';
 import '../widgets/option_tile.dart';
@@ -20,26 +20,6 @@ class GameScreen extends StatelessWidget {
 
   const GameScreen({super.key, required this.controller});
 
-  // One background per round, in order — cycling through them as the Rush
-  // progresses so each round reads as visually distinct. Split by quartile
-  // of the Rush's length rather than a hardcoded question count, so this
-  // keeps working if the server's rounds-per-Rush ever changes.
-  static const List<String> _roundBackgrounds = [
-    'assets/images/app_background.png',
-    'assets/images/app_background2.png',
-    'assets/images/app_background3.png',
-    'assets/images/app_background4.png',
-  ];
-
-  String _backgroundForRound(int qIndex, int questionTotal) {
-    if (questionTotal <= 0) return _roundBackgrounds.first;
-    final segment = (qIndex * _roundBackgrounds.length ~/ questionTotal).clamp(
-      0,
-      _roundBackgrounds.length - 1,
-    );
-    return _roundBackgrounds[segment];
-  }
-
   @override
   Widget build(BuildContext context) {
     final q = controller.currentQuestion;
@@ -48,7 +28,7 @@ class GameScreen extends StatelessWidget {
       decoration: BoxDecoration(
         image: DecorationImage(
           image: AssetImage(
-            _backgroundForRound(controller.qIndex, controller.questionTotal),
+            roundBackgroundFor(controller.qIndex, controller.questionTotal),
           ),
           fit: BoxFit.cover,
         ),
@@ -64,7 +44,8 @@ class GameScreen extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
                     child: _OpponentStrip(
-                      opponentName: controller.opponent?.displayName ?? 'Opponent',
+                      opponentName:
+                          controller.opponent?.displayName ?? 'Opponent',
                       opponentIndex: controller.opponentQuestionIndex,
                       total: controller.questionTotal,
                     ),
@@ -297,27 +278,6 @@ class GameScreen extends StatelessWidget {
               ],
             ),
           ),
-          if (controller.feedback != AnswerFeedback.none &&
-              controller.gradedCorrectIndex != null)
-            Positioned.fill(
-              child: FeedbackOverlay(
-                feedback: controller.feedback,
-                answerScore: controller.xpGained,
-                streak: controller.streak,
-                streakBeforeAnswer: controller.lastStreakBeforeAnswer,
-                isMilestone: controller.lastIsMilestone,
-                speedLabel: controller.lastSpeedLabel,
-                streakMultiplier: controller.lastStreakMultiplier,
-                difficulty: controller.lastDifficulty,
-                correctAnswerText: q.options[controller.gradedCorrectIndex!],
-                momentumTier: controller.momentumTier,
-                cluesRevealed: controller.lastCluesRevealed,
-                clueMultiplier: controller.lastClueMultiplier,
-                removeOneUsed: controller.lastRemoveOneUsed,
-                doubleDownChoice: controller.lastDoubleDownChoice,
-                doubleDownMultiplier: controller.lastDoubleDownMultiplier,
-              ),
-            ),
           if (controller.awaitingDoubleDownChoice)
             Positioned.fill(
               child: DoubleDownOverlay(
@@ -340,7 +300,11 @@ class _OpponentStrip extends StatelessWidget {
   final int opponentIndex;
   final int total;
 
-  const _OpponentStrip({required this.opponentName, required this.opponentIndex, required this.total});
+  const _OpponentStrip({
+    required this.opponentName,
+    required this.opponentIndex,
+    required this.total,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -359,7 +323,11 @@ class _OpponentStrip extends StatelessWidget {
             child: Text(
               opponentName,
               overflow: TextOverflow.ellipsis,
-              style: AppFonts.inter(size: 11, weight: FontWeight.w800, color: Colors.white.withValues(alpha: 0.85)),
+              style: AppFonts.inter(
+                size: 11,
+                weight: FontWeight.w800,
+                color: Colors.white.withValues(alpha: 0.85),
+              ),
             ),
           ),
           const SizedBox(width: 10),

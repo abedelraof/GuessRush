@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../state/quiz_controller.dart';
 import 'events_screen.dart';
+import 'feedback_screen.dart';
 import 'game_screen.dart';
 import 'home_screen.dart';
 import 'leaderboard_screen.dart';
@@ -84,6 +85,11 @@ class _QuizAppShellState extends State<QuizAppShell> {
       case AppScreen.game:
         return GameScreen(
           key: ValueKey('game-${controller.qIndex}'),
+          controller: controller,
+        );
+      case AppScreen.feedback:
+        return FeedbackScreen(
+          key: ValueKey('feedback-${controller.qIndex}'),
           controller: controller,
         );
       case AppScreen.results:

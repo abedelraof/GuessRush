@@ -1,11 +1,10 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../models/game_mode.dart';
 import '../state/quiz_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_styles.dart';
+import '../widgets/decorative_card_circles.dart';
 import '../widgets/pressable_scale.dart';
 
 /// Static display metadata for one Pick Your Rush mode card. Fixed/small (4
@@ -68,72 +67,6 @@ const _kRushModes = [
   ),
 ];
 
-/// One decorative dot scattered across a card's background — all circles on
-/// a card share `_kCircleColor`; only size, position, and opacity vary.
-class _CardCircle {
-  final Alignment alignment;
-  final double size;
-  final double opacity;
-
-  const _CardCircle(this.alignment, this.size, this.opacity);
-}
-
-const _kCircleColor = Colors.white;
-
-/// Deterministic per-mode "randomness" — seeded by `seed` so each card's
-/// scatter of circles looks hand-placed and stays put across rebuilds
-/// (isPending/isDimmed toggling shouldn't make them jump around), while
-/// still differing from one mode's card to the next. Placement uses simple
-/// rejection sampling (retry a new spot if it lands too close to an already-
-/// placed circle) so the result reads as spread out rather than clumped —
-/// `minSeparation` scales down as `count` grows so it can still always place
-/// every circle instead of stalling out.
-List<_CardCircle> _generateCircles(int seed, int count) {
-  final rng = math.Random(seed);
-  final minSeparation = 1.7 / math.sqrt(count);
-  final placed = <Alignment>[];
-
-  // Biases y toward the bottom edge (+1): raising a uniform [0,1] value to a
-  // fractional power pushes it up toward 1 rather than spreading it evenly —
-  // the lower the exponent, the harder that push, so most circles cluster
-  // near the bottom and only a few reach up toward the top.
-  double biasedY() => -1 + 2 * math.pow(rng.nextDouble(), 0.4).toDouble();
-
-  Alignment randomPoint() => Alignment(rng.nextDouble() * 2 - 1, biasedY());
-
-  Alignment bestCandidate() {
-    Alignment best = randomPoint();
-    double bestMinDist = -1;
-    for (var attempt = 0; attempt < 40; attempt++) {
-      final candidate = randomPoint();
-      final minDist = placed.isEmpty
-          ? double.infinity
-          : placed
-              .map((p) => math.sqrt(math.pow(p.x - candidate.x, 2) + math.pow(p.y - candidate.y, 2)))
-              .reduce(math.min);
-      if (minDist > bestMinDist) {
-        best = candidate;
-        bestMinDist = minDist;
-      }
-      if (minDist >= minSeparation) break;
-    }
-    return best;
-  }
-
-  return List.generate(count, (_) {
-    final alignment = bestCandidate();
-    placed.add(alignment);
-    final size = 12 + rng.nextDouble() * 30;
-    // Fades out toward the top: a circle's own opacity is scaled by how far
-    // down the card it landed (0 at the very top edge, 1 at the very bottom),
-    // on top of the density bias above — so the top isn't just sparser, the
-    // few circles that do land there are also noticeably dimmer.
-    final verticalFade = (alignment.y + 1) / 2;
-    final opacity = (0.10 + rng.nextDouble() * 0.15) * (0.25 + 0.75 * verticalFade);
-    return _CardCircle(alignment, size, opacity);
-  });
-}
-
 class _RushModeCard extends StatelessWidget {
   final _RushModeInfo info;
   final bool isPending;
@@ -155,79 +88,78 @@ class _RushModeCard extends StatelessWidget {
       child: AnimatedOpacity(
         opacity: isDimmed ? 0.35 : 1.0,
         duration: const Duration(milliseconds: 200),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: info.gradient,
-            borderRadius: BorderRadius.circular(28),
-            border: isPending
-                ? Border.all(color: Colors.white, width: 3)
-                : Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1),
-            boxShadow: const [
-              BoxShadow(color: Color(0x40000000), blurRadius: 20, offset: Offset(0, 10)),
-            ],
-          ),
-          child: Stack(
-            children: [
-              // Decorative background dots — varied size/color/position, behind everything else.
-              for (final circle in _generateCircles(info.mode.index, 14))
-                Align(
-                  alignment: circle.alignment,
-                  child: IgnorePointer(
-                    child: Container(
-                      width: circle.size,
-                      height: circle.size,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _kCircleColor.withValues(alpha: circle.opacity),
+        child: Opacity(
+          opacity: 0.9,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              gradient: info.gradient,
+              borderRadius: BorderRadius.circular(28),
+              border: isPending
+                  ? Border.all(color: Colors.white, width: 3)
+                  : Border.all(
+                      color: Colors.white.withValues(alpha: 0.15),
+                      width: 1,
+                    ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x40000000),
+                  blurRadius: 20,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                DecorativeCardCircles(seed: info.mode.index),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: [
+                    Image.asset(info.assetPath, height: 104),
+                    const SizedBox(height: 8),
+                    Text(
+                      info.title,
+                      style: AppFonts.baloo(size: 19, weight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      info.tagline.toUpperCase(),
+                      style: AppFonts.inter(
+                        size: 11,
+                        weight: FontWeight.w800,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      info.description,
+                      style: AppFonts.inter(
+                        size: 12,
+                        weight: FontWeight.w600,
+                        color: Colors.white.withValues(alpha: 0.9),
+                      ),
+                    ),
+                  ],
+                ),
+                if (isPending)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                        backgroundColor: Colors.white.withValues(alpha: 0.25),
                       ),
                     ),
                   ),
-                ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  Image.asset(info.assetPath, height: 104),
-                  const SizedBox(height: 8),
-                  Text(info.title, style: AppFonts.baloo(size: 19, weight: FontWeight.w800)),
-                  const SizedBox(height: 2),
-                  Text(
-                    info.tagline.toUpperCase(),
-                    style: AppFonts.inter(
-                      size: 11,
-                      weight: FontWeight.w800,
-                      color: Colors.white.withValues(alpha: 0.85),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    info.description,
-                    style: AppFonts.inter(
-                      size: 12,
-                      weight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.9),
-                    ),
-                  ),
-                ],
-              ),
-              if (isPending)
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
-                      backgroundColor: Colors.white.withValues(alpha: 0.25),
-                    ),
-                  ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -296,7 +228,13 @@ class _PickRushScreenState extends State<PickRushScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       alignment: Alignment.center,
-                      child: Text('←', style: AppFonts.inter(size: 16, weight: FontWeight.w800)),
+                      child: Text(
+                        '←',
+                        style: AppFonts.inter(
+                          size: 16,
+                          weight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -313,7 +251,10 @@ class _PickRushScreenState extends State<PickRushScreen> {
             if (controller.errorMessage != null) ...[
               const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(12),

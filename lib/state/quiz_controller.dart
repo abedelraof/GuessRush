@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' hide Category;
+import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 
 import '../models/category.dart';
@@ -28,6 +29,7 @@ enum AppScreen {
   playWithFriends,
   matchWaiting,
   game,
+  feedback,
   results,
   profile,
   leaderboard,
@@ -79,14 +81,17 @@ double clueMultiplierHintFor(int cluesRevealed) {
 }
 
 class QuizController extends ChangeNotifier {
-  QuizController({AuthService? authService, QuizApi? quizApi, Stream<MatchEvent>? matchEvents})
-    : authService = authService ?? AuthService(ApiClient.instance),
-      quizApi = quizApi ?? QuizApi(ApiClient.instance),
-      _matchEvents = matchEvents ?? MatchSocketService.instance.events,
-      // Only the real MatchSocketService singleton actually needs connecting/
-      // disconnecting — a test-injected stream is already "live" on its own,
-      // and must never touch the real singleton's state.
-      _usesRealMatchSocket = matchEvents == null;
+  QuizController({
+    AuthService? authService,
+    QuizApi? quizApi,
+    Stream<MatchEvent>? matchEvents,
+  }) : authService = authService ?? AuthService(ApiClient.instance),
+       quizApi = quizApi ?? QuizApi(ApiClient.instance),
+       _matchEvents = matchEvents ?? MatchSocketService.instance.events,
+       // Only the real MatchSocketService singleton actually needs connecting/
+       // disconnecting — a test-injected stream is already "live" on its own,
+       // and must never touch the real singleton's state.
+       _usesRealMatchSocket = matchEvents == null;
 
   final AuthService authService;
   final QuizApi quizApi;
@@ -524,6 +529,8 @@ class QuizController extends ChangeNotifier {
         feedback = AnswerFeedback.wrong;
         HapticFeedback.mediumImpact();
       }
+      screen = AppScreen.feedback;
+      _prefetchNextQuestionAssets();
       notifyListeners();
 
       _advanceDelay = Timer(const Duration(milliseconds: 1600), _nextQuestion);
@@ -565,6 +572,7 @@ class QuizController extends ChangeNotifier {
     } else {
       qIndex = next;
       feedback = AnswerFeedback.none;
+      screen = AppScreen.game;
       // If the last answer just unlocked a Double Down offer, it's for THIS
       // question — hold here with the decision overlay instead of starting the
       // timer/narration; startQuestion runs once the player picks (see below).
@@ -575,6 +583,37 @@ class QuizController extends ChangeNotifier {
         notifyListeners();
         startQuestion(next);
       }
+    }
+  }
+
+  /// Kicks off best-effort prefetch of the next question's real network media
+  /// (option-thumbnail images + narration audio) during the feedback screen's
+  /// display window, so it's already cached/buffered by the time that question
+  /// actually appears. Fire-and-forget — must never throw or delay the caller.
+  void _prefetchNextQuestionAssets() {
+    try {
+      final next = qIndex + 1;
+      if (lastRushComplete || next >= questions.length) return;
+      final nextQuestion = questions[next];
+
+      for (final url in nextQuestion.optionImageUrls) {
+        if (url == null || url.isEmpty) continue;
+        try {
+          final stream = NetworkImage(url).resolve(const ImageConfiguration());
+          late final ImageStreamListener listener;
+          listener = ImageStreamListener(
+            (_, _) => stream.removeListener(listener),
+            onError: (_, _) => stream.removeListener(listener),
+          );
+          stream.addListener(listener);
+        } catch (_) {
+          // best-effort — one bad image URL must not block the others
+        }
+      }
+
+      AudioPlayerService.instance.preload(nextQuestion.audioUrl);
+    } catch (_) {
+      // best-effort — prefetch must never surface an error into the answer flow
     }
   }
 
@@ -792,14 +831,16 @@ class QuizController extends ChangeNotifier {
         matchResult = e;
         notifyListeners();
       case MatchCancelledEvent e:
-        if (e.matchId != activeMatchId && screen != AppScreen.matchWaiting) return;
+        if (e.matchId != activeMatchId && screen != AppScreen.matchWaiting)
+          return;
         isSearchingMatch = false;
         matchError = 'Your opponent left before the match started.';
         screen = AppScreen.playWithFriends;
         notifyListeners();
       case QueueTimeoutEvent():
         isSearchingMatch = false;
-        matchError = "Couldn't find an opponent right now — try again in a bit.";
+        matchError =
+            "Couldn't find an opponent right now — try again in a bit.";
         screen = AppScreen.playWithFriends;
         notifyListeners();
       case UnknownMatchEvent():
@@ -827,7 +868,11 @@ class QuizController extends ChangeNotifier {
     isSearchingMatch = false;
     friendInviteCode = null;
     _beginRush(
-      SessionStart(sessionId: sessionId, questions: questions, removeOneUsesRemaining: removeOneUsesRemaining),
+      SessionStart(
+        sessionId: sessionId,
+        questions: questions,
+        removeOneUsesRemaining: removeOneUsesRemaining,
+      ),
       isDaily: false,
     );
   }

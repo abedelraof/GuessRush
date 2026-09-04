@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../state/quiz_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_styles.dart';
+import '../widgets/decorative_card_circles.dart';
 import '../widgets/pressable_scale.dart';
 
 /// Shown after tapping "Play With Friends" on Home — the mode-select screen
@@ -36,7 +37,13 @@ class PlayWithFriendsScreen extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       alignment: Alignment.center,
-                      child: Text('←', style: AppFonts.inter(size: 16, weight: FontWeight.w800)),
+                      child: Text(
+                        '←',
+                        style: AppFonts.inter(
+                          size: 16,
+                          weight: FontWeight.w800,
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -53,7 +60,10 @@ class PlayWithFriendsScreen extends StatelessWidget {
             if (controller.matchError != null) ...[
               const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.9),
                   borderRadius: BorderRadius.circular(12),
@@ -76,7 +86,8 @@ class PlayWithFriendsScreen extends StatelessWidget {
                     child: PressableScale(
                       onTap: () => controller.startRandomQueue(),
                       child: const _ModeCard(
-                        emoji: '🌍',
+                        seed: 0,
+                        assetPath: 'assets/images/play_online.png',
                         title: 'Play Online 1v1',
                         tagline: 'Get matched with a random opponent',
                         description: 'Same questions, same clock — see who scores higher.',
@@ -89,10 +100,12 @@ class PlayWithFriendsScreen extends StatelessWidget {
                     child: PressableScale(
                       onTap: controller.goToFriendMatch,
                       child: const _ModeCard(
-                        emoji: '🤝',
+                        seed: 1,
+                        assetPath: 'assets/images/play_with_friends.png',
                         title: 'Play with a Friend',
                         tagline: 'Invite someone with a code',
-                        description: 'Share a code, or enter one a friend sent you.',
+                        description:
+                            'Share a code, or enter one a friend sent you.',
                         gradient: AppColors.questionLabel,
                       ),
                     ),
@@ -108,14 +121,16 @@ class PlayWithFriendsScreen extends StatelessWidget {
 }
 
 class _ModeCard extends StatelessWidget {
-  final String emoji;
+  final int seed;
+  final String assetPath;
   final String title;
   final String tagline;
   final String description;
   final Gradient gradient;
 
   const _ModeCard({
-    required this.emoji,
+    required this.seed,
+    required this.assetPath,
     required this.title,
     required this.tagline,
     required this.description,
@@ -124,44 +139,62 @@ class _ModeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: gradient,
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1),
-        boxShadow: const [
-          BoxShadow(color: Color(0x40000000), blurRadius: 20, offset: Offset(0, 10)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(emoji, style: const TextStyle(fontSize: 44)),
-          const SizedBox(height: 10),
-          Text(title, style: AppFonts.baloo(size: 22, weight: FontWeight.w800)),
-          const SizedBox(height: 2),
-          Text(
-            tagline.toUpperCase(),
-            style: AppFonts.inter(
-              size: 11,
-              weight: FontWeight.w800,
-              color: Colors.white.withValues(alpha: 0.85),
-              letterSpacing: 0.5,
-            ),
+    return Opacity(
+      opacity: 0.9,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          gradient: gradient,
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.15),
+            width: 1,
           ),
-          const SizedBox(height: 6),
-          Text(
-            description,
-            style: AppFonts.inter(
-              size: 13,
-              weight: FontWeight.w600,
-              color: Colors.white.withValues(alpha: 0.9),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x40000000),
+              blurRadius: 20,
+              offset: Offset(0, 10),
             ),
-          ),
-        ],
+          ],
+        ),
+        child: Stack(
+          children: [
+            DecorativeCardCircles(seed: seed),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset(assetPath, height: 104),
+                const SizedBox(height: 10),
+                Text(
+                  title,
+                  style: AppFonts.baloo(size: 22, weight: FontWeight.w800),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  tagline.toUpperCase(),
+                  style: AppFonts.inter(
+                    size: 11,
+                    weight: FontWeight.w800,
+                    color: Colors.white.withValues(alpha: 0.85),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  description,
+                  style: AppFonts.inter(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
