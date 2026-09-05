@@ -1,11 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/leaderboard.dart';
 import '../state/quiz_controller.dart';
 import '../theme/colors.dart';
+import '../theme/round_background.dart';
 import '../theme/text_styles.dart';
 import '../widgets/animated_counter.dart';
-import '../widgets/stat_tile.dart';
 
 class ResultsScreen extends StatelessWidget {
   final QuizController controller;
@@ -32,220 +34,235 @@ class ResultsScreen extends StatelessWidget {
         '✨ ×${controller.lastXpMultiplierApplied.toStringAsFixed(0)} XP EVENT',
     ];
 
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-        child: Column(
-          children: [
-            // Scrollable: a Rush with several simultaneous badges (first-ever Rush
-            // commonly triggers many at once — new personal best, level up, first-rush
-            // achievements, ...) plus the match banner can genuinely exceed a compact
-            // screen's height. A fixed Column here would just overflow instead.
-            Expanded(
-              child: SingleChildScrollView(
-                child: Column(
+    // Same round background the last question was showing — this is a
+    // bigger, rarer moment than per-question feedback, so it gets its own
+    // celebratory gold glow over that background rather than reusing
+    // feedback's green/red one.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage(
+                roundBackgroundFor(controller.qIndex, controller.questionTotal),
+              ),
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        Container(color: Colors.black.withValues(alpha: 0.22)),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: RadialGradient(
+              center: Alignment(0, -0.6),
+              radius: 0.9,
+              colors: [Color(0x6BFFC94A), Color(0x00FFC94A)],
+            ),
+          ),
+        ),
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+            child: Column(
+              children: [
+                // Scrollable: a Rush with several simultaneous badges (first-ever Rush
+                // commonly triggers many at once — new personal best, level up, first-rush
+                // achievements, ...) plus the match banner can genuinely exceed a compact
+                // screen's height. A fixed Column here would just overflow instead.
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        const _TrophyBadge(),
+                        const SizedBox(height: 12),
+                        Text(
+                          controller.isDailyRush
+                              ? 'DAILY RUSH COMPLETE!'
+                              : 'GAME COMPLETE!',
+                          style: AppFonts.baloo(size: 26).copyWith(
+                            shadows: const [
+                              Shadow(
+                                color: Color(0x66000000),
+                                blurRadius: 10,
+                                offset: Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (controller.activeMatchId != null) ...[
+                          const SizedBox(height: 14),
+                          _MatchResultBanner(controller: controller),
+                        ],
+                        const SizedBox(height: 14),
+                        AnimatedCounter(
+                          value: controller.score,
+                          duration: const Duration(milliseconds: 900),
+                          style: AppFonts.baloo(
+                            size: 56,
+                            color: AppColors.finalScoreGold,
+                          ),
+                        ),
+                        if (controller.xpAwarded > 0) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            '+${controller.xpAwarded} XP',
+                            style: AppFonts.inter(
+                              size: 13,
+                              weight: FontWeight.w700,
+                              color: AppColors.finalScoreGold,
+                            ),
+                          ),
+                        ],
+                        if (badges.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: badges
+                                .map((a) => _AchievementBadge(text: a))
+                                .toList(),
+                          ),
+                        ] else if (controller.isDailyRush &&
+                            controller.dailyPreviousBestScore != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            'Your best Daily Rush: ${controller.dailyPreviousBestScore}',
+                            style: AppFonts.inter(
+                              size: 13,
+                              weight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.75),
+                            ),
+                          ),
+                        ] else if (controller.personalBestScore != null) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            'Personal best: ${controller.personalBestScore}',
+                            style: AppFonts.inter(
+                              size: 13,
+                              weight: FontWeight.w600,
+                              color: Colors.white.withValues(alpha: 0.75),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 22),
+                        GridView.count(
+                          crossAxisCount: 3,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: 0.92,
+                          children: [
+                            _MiniStat(
+                              value: '${controller.correctCount}',
+                              label: 'CORRECT',
+                            ),
+                            _MiniStat(
+                              value: '${controller.wrongCount}',
+                              label: 'WRONG',
+                            ),
+                            _MiniStat(
+                              value: '${controller.accuracyPct.round()}%',
+                              label: 'ACCURACY',
+                            ),
+                            _MiniStat(
+                              value: '🔥${controller.bestStreak}',
+                              label: 'BEST STREAK',
+                            ),
+                            _MiniStat(
+                              value:
+                                  '${controller.avgResponseTime.toStringAsFixed(1)}s',
+                              label: 'AVG TIME',
+                            ),
+                            _MiniStat(
+                              value: '${controller.momentum.round()}%',
+                              label: 'MOMENTUM',
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Column(
                   children: [
-                    Text(
-                      controller.isDailyRush
-                          ? 'DAILY RUSH COMPLETE! ⚡'
-                          : 'GAME COMPLETE! 🎉',
-                      style: AppFonts.baloo(size: 26),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        // Daily Rush only ever gets the one official attempt — replaying isn't
+                        // offered; the natural next step is seeing where that score landed.
+                        // A match has no "replay the same opponent" — Play Again sends you back
+                        // to mode-select instead (playAgain() has nothing to replay here: a
+                        // match session was never started via selectCategory/startRush).
+                        onTap: controller.isDailyRush
+                            ? () => controller.goToLeaderboard(
+                                period: LeaderboardPeriod.daily,
+                              )
+                            : controller.activeMatchId != null
+                            ? controller.goToPlayWithFriends
+                            : controller.playAgain,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          decoration: BoxDecoration(
+                            color: AppColors.goldTimer,
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: AppColors.playAgainShadow,
+                                offset: Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            controller.isDailyRush
+                                ? 'VIEW LEADERBOARD'
+                                : 'PLAY AGAIN',
+                            style: AppFonts.baloo(
+                              size: 17,
+                              color: AppColors.darkText,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                    if (controller.activeMatchId != null) ...[
-                      const SizedBox(height: 14),
-                      _MatchResultBanner(controller: controller),
-                    ],
-                    const SizedBox(height: 14),
-                    AnimatedCounter(
-                      value: controller.score,
-                      duration: const Duration(milliseconds: 900),
-                      style: AppFonts.baloo(
-                        size: 56,
-                        color: AppColors.finalScoreGold,
-                      ),
-                    ),
-                    if (controller.xpAwarded > 0) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '+${controller.xpAwarded} XP',
-                        style: AppFonts.inter(
-                          size: 13,
-                          weight: FontWeight.w700,
-                          color: AppColors.finalScoreGold,
+                    const SizedBox(height: 10),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: controller.goHome,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            'HOME',
+                            style: AppFonts.inter(
+                              size: 14,
+                              weight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
                         ),
-                      ),
-                    ],
-                    if (badges.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: badges
-                            .map((a) => _AchievementBadge(text: a))
-                            .toList(),
-                      ),
-                    ] else if (controller.isDailyRush &&
-                        controller.dailyPreviousBestScore != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'Your best Daily Rush: ${controller.dailyPreviousBestScore}',
-                        style: AppFonts.inter(
-                          size: 13,
-                          weight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.75),
-                        ),
-                      ),
-                    ] else if (controller.personalBestScore != null) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'Personal best: ${controller.personalBestScore}',
-                        style: AppFonts.inter(
-                          size: 13,
-                          weight: FontWeight.w600,
-                          color: Colors.white.withValues(alpha: 0.75),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 22),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardWhite,
-                        borderRadius: BorderRadius.circular(22),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x26000000),
-                            blurRadius: 24,
-                            offset: Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: GridView.count(
-                        crossAxisCount: 2,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisSpacing: 16,
-                        crossAxisSpacing: 16,
-                        // 2.6 was too tight for a two-line label ("Avg Response Time" wraps
-                        // at narrow widths) — StatTile's Column would overflow its cell.
-                        // 1.3 gives every cell comfortable headroom for two lines.
-                        childAspectRatio: 1.3,
-                        children: [
-                          StatTile(
-                            value: '${controller.correctCount}',
-                            label: 'Correct',
-                            color: AppColors.correctStat,
-                          ),
-                          StatTile(
-                            value: '${controller.wrongCount}',
-                            label: 'Wrong',
-                            color: AppColors.wrongStat,
-                          ),
-                          StatTile(
-                            value: '${controller.accuracyPct.round()}%',
-                            label: 'Accuracy',
-                            color: AppColors.linkPurple,
-                          ),
-                          StatTile(
-                            value: '🔥${controller.bestStreak}',
-                            label: 'Best Streak',
-                            color: AppColors.bestStreakStat,
-                          ),
-                          StatTile(
-                            value:
-                                '${controller.avgResponseTime.toStringAsFixed(1)}s',
-                            label: 'Avg Response Time',
-                            color: AppColors.darkText,
-                          ),
-                          StatTile(
-                            value: '${controller.momentum.round()}%',
-                            label: 'Final Momentum',
-                            color: AppColors.streakGradA,
-                          ),
-                        ],
                       ),
                     ),
                   ],
                 ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Column(
-              children: [
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    // Daily Rush only ever gets the one official attempt — replaying isn't
-                    // offered; the natural next step is seeing where that score landed.
-                    // A match has no "replay the same opponent" — Play Again sends you back
-                    // to mode-select instead (playAgain() has nothing to replay here: a
-                    // match session was never started via selectCategory/startRush).
-                    onTap: controller.isDailyRush
-                        ? () => controller.goToLeaderboard(
-                            period: LeaderboardPeriod.daily,
-                          )
-                        : controller.activeMatchId != null
-                        ? controller.goToPlayWithFriends
-                        : controller.playAgain,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: AppColors.goldTimer,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: AppColors.playAgainShadow,
-                            offset: Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        controller.isDailyRush
-                            ? 'VIEW LEADERBOARD'
-                            : 'PLAY AGAIN',
-                        style: AppFonts.baloo(
-                          size: 17,
-                          color: AppColors.darkText,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: controller.goHome,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        'HOME',
-                        style: AppFonts.inter(
-                          size: 14,
-                          weight: FontWeight.w800,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
               ],
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -326,6 +343,93 @@ class _MatchResultBanner extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The hero moment at the top of Results — a 3D coin-style flip-in, same
+/// technique as the per-question feedback screen's reveal (Matrix4 rotateY
+/// with perspective), just a bigger one-shot occasion since this only shows
+/// once per whole Rush rather than once per question.
+class _TrophyBadge extends StatelessWidget {
+  const _TrophyBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 750),
+      curve: Curves.easeOutBack,
+      builder: (context, t, child) {
+        final spinAngle = t.clamp(0.0, 1.4) * 2 * math.pi;
+        return Transform(
+          alignment: Alignment.center,
+          transform: Matrix4.identity()
+            ..setEntry(3, 2, 0.0022)
+            ..rotateY(spinAngle)
+            ..scaleByDouble(t, t, t, 1.0),
+          child: child,
+        );
+      },
+      child: Container(
+        width: 88,
+        height: 88,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.white.withValues(alpha: 0.18),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x40000000),
+              blurRadius: 20,
+              offset: Offset(0, 10),
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: const Text('🏆', style: TextStyle(fontSize: 42)),
+      ),
+    );
+  }
+}
+
+/// A single Rush stat as a compact chip directly on the colorful background —
+/// replaces the old white-card GridView of StatTiles, which forced a tall
+/// fixed aspect ratio per cell (empty space around short value/label text)
+/// and assumed a white backdrop these chips no longer sit on.
+class _MiniStat extends StatelessWidget {
+  final String value;
+  final String label;
+
+  const _MiniStat({required this.value, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(value, style: AppFonts.baloo(size: 22, color: Colors.white)),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppFonts.inter(
+              size: 9,
+              weight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.65),
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
