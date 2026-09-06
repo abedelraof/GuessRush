@@ -20,7 +20,28 @@ class GuessRushPlayButton extends StatefulWidget {
   /// does nothing when released (matches `InkWell`'s own null-onTap behavior).
   final VoidCallback? onPressed;
 
-  const GuessRushPlayButton({super.key, this.onPressed});
+  /// Defaults reproduce the original Home-screen "PLAY" button exactly —
+  /// callers that don't need a different label/icon (i.e. Home itself) don't
+  /// need to change anything.
+  final String label;
+  final double labelSize;
+  final IconData icon;
+  final double iconSize;
+
+  /// When true, the button stretches to fill its parent's width instead of
+  /// hugging its content — for callers (e.g. a full-width results-screen CTA)
+  /// that need the button to match a sibling full-width element.
+  final bool fullWidth;
+
+  const GuessRushPlayButton({
+    super.key,
+    this.onPressed,
+    this.label = 'PLAY',
+    this.labelSize = 36,
+    this.icon = Icons.play_arrow_rounded,
+    this.iconSize = 38,
+    this.fullWidth = false,
+  });
 
   @override
   State<GuessRushPlayButton> createState() => _GuessRushPlayButtonState();
@@ -170,6 +191,12 @@ class _GuessRushPlayButtonState extends State<GuessRushPlayButton> {
         child: Stack(
           children: [
             Container(
+              // Forcing this to double.infinity (clamped by the incoming
+              // constraints — never literally infinite) is what makes
+              // `fullWidth` stretch the whole layered button: every
+              // Container/ClipRRect/Stack below just adopts whatever size
+              // this one resolves to.
+              width: widget.fullWidth ? double.infinity : null,
               // Flat and symmetric now — the extrusion's reach is reserved
               // as real space by the Padding further down instead of being
               // compensated for here. See `_outlineWidth` above.
@@ -294,6 +321,12 @@ class _GuessRushPlayButtonState extends State<GuessRushPlayButton> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(_cornerRadius),
                         child: Stack(
+                          // A no-op when the Stack's size already matches its
+                          // content (the default, content-hugging case), but
+                          // keeps the icon/label centered instead of stuck to
+                          // the top-left once `fullWidth` makes this Stack
+                          // wider than the Row it contains.
+                          alignment: Alignment.center,
                           children: [
                             // --- GLOSS SHEEN ---
                             // A soft, full-height white-to-transparent
@@ -373,20 +406,20 @@ class _GuessRushPlayButtonState extends State<GuessRushPlayButton> {
                                   // outline as the "PLAY" text below (see
                                   // `_outlineCopies`). ---
                                   SizedBox(
-                                    width: 38,
-                                    height: 38,
+                                    width: widget.iconSize,
+                                    height: widget.iconSize,
                                     child: Stack(
                                       children: [
                                         ..._outlineCopies(
-                                          const Icon(
-                                            Icons.play_arrow_rounded,
-                                            size: 38,
+                                          Icon(
+                                            widget.icon,
+                                            size: widget.iconSize,
                                             color: Colors.white,
                                           ),
                                         ),
-                                        const Icon(
-                                          Icons.play_arrow_rounded,
-                                          size: 38,
+                                        Icon(
+                                          widget.icon,
+                                          size: widget.iconSize,
                                           color: _textShadowDeep,
                                         ),
                                       ],
@@ -403,18 +436,18 @@ class _GuessRushPlayButtonState extends State<GuessRushPlayButton> {
                                     children: [
                                       ..._outlineCopies(
                                         Text(
-                                          'PLAY',
+                                          widget.label,
                                           style: AppFonts.inter(
-                                            size: 36,
+                                            size: widget.labelSize,
                                             weight: FontWeight.w800,
                                             color: Colors.white,
                                           ),
                                         ),
                                       ),
                                       Text(
-                                        'PLAY',
+                                        widget.label,
                                         style: AppFonts.inter(
-                                          size: 36,
+                                          size: widget.labelSize,
                                           weight: FontWeight.w800,
                                           color: _textShadowDeep,
                                         ),

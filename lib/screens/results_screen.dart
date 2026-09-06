@@ -8,6 +8,7 @@ import '../theme/colors.dart';
 import '../theme/round_background.dart';
 import '../theme/text_styles.dart';
 import '../widgets/animated_counter.dart';
+import '../widgets/guess_rush_play_button.dart';
 
 class ResultsScreen extends StatelessWidget {
   final QuizController controller;
@@ -189,48 +190,59 @@ class ResultsScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 Column(
                   children: [
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(18),
-                        // Daily Rush only ever gets the one official attempt — replaying isn't
-                        // offered; the natural next step is seeing where that score landed.
-                        // A match has no "replay the same opponent" — Play Again sends you back
-                        // to mode-select instead (playAgain() has nothing to replay here: a
-                        // match session was never started via selectCategory/startRush).
-                        onTap: controller.isDailyRush
-                            ? () => controller.goToLeaderboard(
-                                period: LeaderboardPeriod.daily,
-                              )
-                            : controller.activeMatchId != null
-                            ? controller.goToPlayWithFriends
-                            : controller.playAgain,
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          decoration: BoxDecoration(
-                            color: AppColors.goldTimer,
-                            borderRadius: BorderRadius.circular(18),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: AppColors.playAgainShadow,
-                                offset: Offset(0, 6),
+                    // Daily Rush only ever gets the one official attempt — replaying isn't
+                    // offered; the natural next step is seeing where that score landed.
+                    // A match has no "replay the same opponent" — Play Again sends you back
+                    // to mode-select instead (playAgain() has nothing to replay here: a
+                    // match session was never started via selectCategory/startRush).
+                    // Only the plain "play again" case gets the Home screen's chunky PLAY
+                    // button treatment — View Leaderboard/rejoin-match are a different
+                    // action, not "play again", so they keep the simpler pill.
+                    if (!controller.isDailyRush &&
+                        controller.activeMatchId == null)
+                      GuessRushPlayButton(
+                        onPressed: controller.playAgain,
+                        label: 'PLAY AGAIN',
+                        labelSize: 22,
+                        iconSize: 26,
+                        fullWidth: true,
+                      )
+                    else
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(18),
+                          onTap: controller.isDailyRush
+                              ? () => controller.goToLeaderboard(
+                                  period: LeaderboardPeriod.daily,
+                                )
+                              : controller.goToPlayWithFriends,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            decoration: BoxDecoration(
+                              color: AppColors.goldTimer,
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: AppColors.playAgainShadow,
+                                  offset: Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              controller.isDailyRush
+                                  ? 'VIEW LEADERBOARD'
+                                  : 'PLAY AGAIN',
+                              style: AppFonts.baloo(
+                                size: 17,
+                                color: AppColors.darkText,
                               ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            controller.isDailyRush
-                                ? 'VIEW LEADERBOARD'
-                                : 'PLAY AGAIN',
-                            style: AppFonts.baloo(
-                              size: 17,
-                              color: AppColors.darkText,
                             ),
                           ),
                         ),
                       ),
-                    ),
                     const SizedBox(height: 10),
                     Material(
                       color: Colors.transparent,
