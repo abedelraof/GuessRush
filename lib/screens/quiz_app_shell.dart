@@ -14,6 +14,7 @@ import 'profile_screen.dart';
 import 'results_screen.dart';
 import 'rewards_screen.dart';
 import 'settings_screen.dart';
+import 'shop_screen.dart';
 import 'signup_screen.dart';
 
 class QuizAppShell extends StatefulWidget {
@@ -124,6 +125,8 @@ class _QuizAppShellState extends State<QuizAppShell> {
           key: const ValueKey('rewards'),
           controller: controller,
         );
+      case AppScreen.shop:
+        return ShopScreen(key: const ValueKey('shop'), controller: controller);
     }
   }
 

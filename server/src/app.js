@@ -13,6 +13,7 @@ const rushRoutes = require('./routes/rush.routes');
 const matchesRoutes = require('./routes/matches.routes');
 const homeRoutes = require('./routes/home.routes');
 const rewardsRoutes = require('./routes/rewards.routes');
+const shopRoutes = require('./routes/shop.routes');
 const adminRoutes = require('./routes/admin.routes');
 const errorHandler = require('./middleware/errorHandler');
 
@@ -41,6 +42,7 @@ app.use('/api/rush', rushRoutes);
 app.use('/api/matches', matchesRoutes);
 app.use('/api/home', homeRoutes);
 app.use('/api/rewards', rewardsRoutes);
+app.use('/api/shop', shopRoutes);
 
 app.use('/admin', adminRoutes);
 

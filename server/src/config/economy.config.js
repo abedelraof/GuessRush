@@ -11,12 +11,18 @@ const ENERGY_MAX = 5;
 const ENERGY_REGEN_INTERVAL_MS = 20 * 60 * 1000;
 
 // ---- Coins ----
-// Flat reward per correct answer in a completed Rush. No shop exists yet to
-// spend them on — this is intentionally just the earning side for now.
+// Flat reward per correct answer in a completed Rush.
 const COINS_PER_CORRECT_ANSWER = 10;
+
+// ---- Shop ----
+// Cost to instantly refill 1 energy point, bypassing the regen timer. Priced
+// so a single completed Rush's typical coin haul buys roughly one extra
+// attempt — see shop.controller.js/energy.service.js's buyEnergy.
+const ENERGY_REFILL_COST_COINS = 40;
 
 module.exports = {
   ENERGY_MAX,
   ENERGY_REGEN_INTERVAL_MS,
   COINS_PER_CORRECT_ANSWER,
+  ENERGY_REFILL_COST_COINS,
 };

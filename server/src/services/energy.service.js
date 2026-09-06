@@ -1,5 +1,5 @@
 const ApiError = require('../utils/ApiError');
-const { ENERGY_MAX, ENERGY_REGEN_INTERVAL_MS } = require('../config/economy.config');
+const { ENERGY_MAX, ENERGY_REGEN_INTERVAL_MS, ENERGY_REFILL_COST_COINS } = require('../config/economy.config');
 
 /**
  * Projects a player's stored energy forward to `now`. Pure function, no DB
@@ -49,4 +49,47 @@ async function consumeEnergy(connection, playerId) {
   ]);
 }
 
-module.exports = { ENERGY_MAX, ENERGY_REGEN_INTERVAL_MS, projectEnergy, consumeEnergy };
+/**
+ * Buys 1 energy point with coins, instantly bypassing the regen timer.
+ * Same locking/anchor-reset shape as consumeEnergy — the write always resets
+ * `energy_updated_at` to now, so the regen clock for the *next* point starts
+ * counting fresh from this purchase rather than from whenever energy was
+ * last spent.
+ */
+async function buyEnergy(connection, playerId) {
+  const [[row]] = await connection.query(
+    'SELECT energy, energy_updated_at, coins FROM players WHERE id = ? FOR UPDATE',
+    [playerId]
+  );
+  const now = new Date();
+  const { energy: currentEnergy } = projectEnergy(row.energy, row.energy_updated_at, now);
+  if (currentEnergy >= ENERGY_MAX) {
+    throw new ApiError(409, 'Energy is already full');
+  }
+  if (row.coins < ENERGY_REFILL_COST_COINS) {
+    throw new ApiError(409, 'Not enough coins');
+  }
+
+  const newEnergy = currentEnergy + 1;
+  const newCoins = row.coins - ENERGY_REFILL_COST_COINS;
+  await connection.query('UPDATE players SET energy = ?, energy_updated_at = ?, coins = ? WHERE id = ?', [
+    newEnergy,
+    now,
+    newCoins,
+    playerId,
+  ]);
+  return {
+    energy: newEnergy,
+    coins: newCoins,
+    nextRegenAt: newEnergy >= ENERGY_MAX ? null : new Date(now.getTime() + ENERGY_REGEN_INTERVAL_MS),
+  };
+}
+
+module.exports = {
+  ENERGY_MAX,
+  ENERGY_REGEN_INTERVAL_MS,
+  ENERGY_REFILL_COST_COINS,
+  projectEnergy,
+  consumeEnergy,
+  buyEnergy,
+};

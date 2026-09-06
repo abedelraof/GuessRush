@@ -14,6 +14,7 @@ import '../models/player.dart';
 import '../models/player_profile.dart';
 import '../models/question.dart';
 import '../models/reward.dart';
+import '../models/shop_catalog.dart';
 import '../services/api_client.dart';
 import '../services/audio_player_service.dart';
 import '../services/auth_service.dart';
@@ -39,6 +40,7 @@ enum AppScreen {
   events,
   settings,
   rewards,
+  shop,
 }
 
 /// Which sub-flow matchWaitingScreen is showing — set by whichever
@@ -194,6 +196,12 @@ class QuizController extends ChangeNotifier {
   // the one row being claimed, not the whole screen.
   List<Reward>? rewards;
   String? claimingRewardKey;
+
+  // Shop screen — currently a single purchasable item (an instant energy
+  // refill, paid for with coins). `shopCatalog` is just its static price;
+  // current energy/coins come from `profile`, already loaded elsewhere.
+  ShopCatalog? shopCatalog;
+  bool isBuyingEnergy = false;
 
   // Strategic mechanics (Phase 5) — clues, the Remove One power-up, and the
   // Double Down risk/reward decision. All server-authoritative: the client only
@@ -1038,6 +1046,39 @@ class QuizController extends ChangeNotifier {
       errorMessage = e.message;
     } finally {
       claimingRewardKey = null;
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadShopCatalog() async {
+    try {
+      shopCatalog = await quizApi.getShopCatalog();
+      notifyListeners();
+    } on ApiException {
+      // Non-fatal — same as loadProfile above.
+    }
+  }
+
+  void goToShop() {
+    screen = AppScreen.shop;
+    notifyListeners();
+    loadShopCatalog();
+    loadProfile(); // refresh in case it's been a while since boot/last Rush
+  }
+
+  Future<void> buyEnergyRefill() async {
+    if (isBuyingEnergy) return;
+    isBuyingEnergy = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      await quizApi.buyEnergyRefill();
+      HapticsService.instance.mediumImpact();
+      await loadProfile(); // energy/coins balance just changed
+    } on ApiException catch (e) {
+      errorMessage = e.message;
+    } finally {
+      isBuyingEnergy = false;
       notifyListeners();
     }
   }

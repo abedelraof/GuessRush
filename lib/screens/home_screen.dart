@@ -75,6 +75,7 @@ class HomeScreen extends StatelessWidget {
                         _IconGrid(
                           onTapLeaderboard: controller.goToLeaderboard,
                           onTapRewards: controller.goToRewards,
+                          onTapShop: controller.goToShop,
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -444,8 +445,13 @@ class _PlayWithFriendsButton extends StatelessWidget {
 class _IconGrid extends StatelessWidget {
   final VoidCallback onTapLeaderboard;
   final VoidCallback onTapRewards;
+  final VoidCallback onTapShop;
 
-  const _IconGrid({required this.onTapLeaderboard, required this.onTapRewards});
+  const _IconGrid({
+    required this.onTapLeaderboard,
+    required this.onTapRewards,
+    required this.onTapShop,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -484,10 +490,11 @@ class _IconGrid extends StatelessWidget {
             const SizedBox(width: gap),
             SizedBox(
               width: tileWidth,
-              child: const _IconTile(
+              child: _IconTile(
                 icon: Icons.shopping_cart_rounded,
                 label: 'SHOP',
                 color: AppColors.tileOrange,
+                onTap: onTapShop,
               ),
             ),
           ],
