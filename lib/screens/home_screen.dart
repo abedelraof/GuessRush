@@ -72,7 +72,10 @@ class HomeScreen extends StatelessWidget {
                           onTap: controller.goToPlayWithFriends,
                         ),
                         const SizedBox(height: 14),
-                        _IconGrid(onTapLeaderboard: controller.goToLeaderboard),
+                        _IconGrid(
+                          onTapLeaderboard: controller.goToLeaderboard,
+                          onTapRewards: controller.goToRewards,
+                        ),
                         const SizedBox(height: 16),
                       ],
                     ),
@@ -440,46 +443,56 @@ class _PlayWithFriendsButton extends StatelessWidget {
 
 class _IconGrid extends StatelessWidget {
   final VoidCallback onTapLeaderboard;
+  final VoidCallback onTapRewards;
 
-  const _IconGrid({required this.onTapLeaderboard});
+  const _IconGrid({required this.onTapLeaderboard, required this.onTapRewards});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _IconTile(
-            icon: Icons.emoji_events_rounded,
-            label: 'LEADERBOARD',
-            color: AppColors.tileBlue,
-            onTap: onTapLeaderboard,
-          ),
-        ),
-        const SizedBox(width: 10),
-        const Expanded(
-          child: _IconTile(
-            icon: Icons.track_changes_rounded,
-            label: 'DAILY QUEST',
-            color: AppColors.tilePurple,
-          ),
-        ),
-        const SizedBox(width: 10),
-        const Expanded(
-          child: _IconTile(
-            icon: Icons.card_giftcard_rounded,
-            label: 'REWARDS',
-            color: AppColors.tileGreen,
-          ),
-        ),
-        const SizedBox(width: 10),
-        const Expanded(
-          child: _IconTile(
-            icon: Icons.shopping_cart_rounded,
-            label: 'SHOP',
-            color: AppColors.tileOrange,
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Only 3 tiles now (Daily Quest was removed) — sized as if there
+        // were still 4 evenly-spaced ones and centered, so removing one just
+        // frees up space at the edges instead of stretching the rest larger.
+        const gap = 10.0;
+        const originalTileCount = 4;
+        final tileWidth =
+            (constraints.maxWidth - gap * (originalTileCount - 1)) /
+            originalTileCount;
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: tileWidth,
+              child: _IconTile(
+                icon: Icons.emoji_events_rounded,
+                label: 'LEADERBOARD',
+                color: AppColors.tileBlue,
+                onTap: onTapLeaderboard,
+              ),
+            ),
+            const SizedBox(width: gap),
+            SizedBox(
+              width: tileWidth,
+              child: _IconTile(
+                icon: Icons.card_giftcard_rounded,
+                label: 'REWARDS',
+                color: AppColors.tileGreen,
+                onTap: onTapRewards,
+              ),
+            ),
+            const SizedBox(width: gap),
+            SizedBox(
+              width: tileWidth,
+              child: const _IconTile(
+                icon: Icons.shopping_cart_rounded,
+                label: 'SHOP',
+                color: AppColors.tileOrange,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
