@@ -190,6 +190,14 @@ class _LeaderboardRow extends StatelessWidget {
         : entry.rank == 3
         ? '🥉'
         : null;
+    // The "me" row sits on a translucent gold tint over the screen's dark
+    // background, where the default dark navy text loses almost all
+    // contrast — switch to white (translucent for the secondary bits) only
+    // for that row.
+    final primaryColor = isMe ? Colors.white : AppColors.darkText;
+    final secondaryColor = isMe
+        ? Colors.white.withValues(alpha: 0.75)
+        : AppColors.mutedText;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -218,7 +226,7 @@ class _LeaderboardRow extends StatelessWidget {
                     style: AppFonts.inter(
                       size: 14,
                       weight: FontWeight.w800,
-                      color: AppColors.mutedText,
+                      color: secondaryColor,
                     ),
                   ),
           ),
@@ -230,7 +238,7 @@ class _LeaderboardRow extends StatelessWidget {
               style: AppFonts.inter(
                 size: 14,
                 weight: FontWeight.w700,
-                color: AppColors.darkText,
+                color: primaryColor,
               ),
             ),
           ),
@@ -239,7 +247,7 @@ class _LeaderboardRow extends StatelessWidget {
             style: AppFonts.inter(
               size: 12,
               weight: FontWeight.w600,
-              color: AppColors.mutedText,
+              color: secondaryColor,
             ),
           ),
           const SizedBox(width: 10),
@@ -248,7 +256,7 @@ class _LeaderboardRow extends StatelessWidget {
             style: AppFonts.inter(
               size: 15,
               weight: FontWeight.w800,
-              color: AppColors.darkText,
+              color: primaryColor,
             ),
           ),
         ],
