@@ -7,6 +7,7 @@ import '../models/match.dart';
 import '../models/mission.dart';
 import '../models/player_profile.dart';
 import '../models/question.dart';
+import '../models/reward.dart';
 import 'api_client.dart';
 
 /// POST /api/matches/queue's immediate response when it pairs the caller
@@ -30,16 +31,21 @@ class QueueJoinResult {
     this.opponent,
   });
 
-  factory QueueJoinResult.fromJson(Map<String, dynamic> json) => QueueJoinResult(
-    status: json['status'] as String,
-    matchId: json['match_id'] as int?,
-    sessionId: json['session_id'] as int?,
-    questions: json['questions'] != null
-        ? (json['questions'] as List).map((q) => Question.fromJson(q as Map<String, dynamic>)).toList()
-        : null,
-    removeOneUsesRemaining: json['remove_one_uses_remaining'] as int?,
-    opponent: json['opponent'] != null ? MatchOpponent.fromJson(json['opponent'] as Map<String, dynamic>) : null,
-  );
+  factory QueueJoinResult.fromJson(Map<String, dynamic> json) =>
+      QueueJoinResult(
+        status: json['status'] as String,
+        matchId: json['match_id'] as int?,
+        sessionId: json['session_id'] as int?,
+        questions: json['questions'] != null
+            ? (json['questions'] as List)
+                  .map((q) => Question.fromJson(q as Map<String, dynamic>))
+                  .toList()
+            : null,
+        removeOneUsesRemaining: json['remove_one_uses_remaining'] as int?,
+        opponent: json['opponent'] != null
+            ? MatchOpponent.fromJson(json['opponent'] as Map<String, dynamic>)
+            : null,
+      );
 }
 
 class SessionStart {
@@ -122,31 +128,35 @@ class AnswerResult {
   });
 
   factory AnswerResult.fromJson(Map<String, dynamic> json) => AnswerResult(
-        isCorrect: json['is_correct'] as bool,
-        timedOut: json['timed_out'] as bool? ?? false,
-        correctIndex: json['correct_index'] as int,
-        difficulty: json['difficulty'] as String? ?? 'easy',
-        baseScore: json['base_score'] as int? ?? 0,
-        speedMultiplier: (json['speed_multiplier'] as num?)?.toDouble() ?? 1.0,
-        streakMultiplier: (json['streak_multiplier'] as num?)?.toDouble() ?? 1.0,
-        answerScore: json['answer_score'] as int? ?? (json['xp_gained'] as int? ?? 0),
-        score: json['score'] as int,
-        streak: json['streak'] as int,
-        bestStreak: json['best_streak'] as int,
-        xpGained: json['xp_gained'] as int,
-        serverElapsedMs: json['server_elapsed_ms'] as int? ?? 0,
-        questionsRemaining: json['questions_remaining'] as int? ?? 0,
-        rushComplete: json['rush_complete'] as bool? ?? false,
-        cluesRevealed: json['clues_revealed'] as int? ?? 1,
-        clueMultiplier: (json['clue_multiplier'] as num?)?.toDouble() ?? 1.0,
-        removeOneUsed: json['remove_one_used'] as bool? ?? false,
-        removeOneUsesRemaining: json['remove_one_uses_remaining'] as int? ?? 0,
-        doubleDownChoice: json['double_down_choice'] as String? ?? 'none',
-        doubleDownMultiplier: (json['double_down_multiplier'] as num?)?.toDouble() ?? 1.0,
-        doubleDownOffer: json['double_down_offer'] != null
-            ? DoubleDownOffer.fromJson(json['double_down_offer'] as Map<String, dynamic>)
-            : null,
-      );
+    isCorrect: json['is_correct'] as bool,
+    timedOut: json['timed_out'] as bool? ?? false,
+    correctIndex: json['correct_index'] as int,
+    difficulty: json['difficulty'] as String? ?? 'easy',
+    baseScore: json['base_score'] as int? ?? 0,
+    speedMultiplier: (json['speed_multiplier'] as num?)?.toDouble() ?? 1.0,
+    streakMultiplier: (json['streak_multiplier'] as num?)?.toDouble() ?? 1.0,
+    answerScore:
+        json['answer_score'] as int? ?? (json['xp_gained'] as int? ?? 0),
+    score: json['score'] as int,
+    streak: json['streak'] as int,
+    bestStreak: json['best_streak'] as int,
+    xpGained: json['xp_gained'] as int,
+    serverElapsedMs: json['server_elapsed_ms'] as int? ?? 0,
+    questionsRemaining: json['questions_remaining'] as int? ?? 0,
+    rushComplete: json['rush_complete'] as bool? ?? false,
+    cluesRevealed: json['clues_revealed'] as int? ?? 1,
+    clueMultiplier: (json['clue_multiplier'] as num?)?.toDouble() ?? 1.0,
+    removeOneUsed: json['remove_one_used'] as bool? ?? false,
+    removeOneUsesRemaining: json['remove_one_uses_remaining'] as int? ?? 0,
+    doubleDownChoice: json['double_down_choice'] as String? ?? 'none',
+    doubleDownMultiplier:
+        (json['double_down_multiplier'] as num?)?.toDouble() ?? 1.0,
+    doubleDownOffer: json['double_down_offer'] != null
+        ? DoubleDownOffer.fromJson(
+            json['double_down_offer'] as Map<String, dynamic>,
+          )
+        : null,
+  );
 }
 
 class SessionSummary {
@@ -220,40 +230,42 @@ class SessionSummary {
   });
 
   factory SessionSummary.fromJson(Map<String, dynamic> json) => SessionSummary(
-        score: json['score'] as int,
-        questionsTotal: json['questions_total'] as int? ?? 0,
-        questionsAnswered: json['questions_answered'] as int? ?? 0,
-        correctCount: json['correct_count'] as int,
-        wrongCount: json['wrong_count'] as int,
-        bestStreak: json['best_streak'] as int,
-        accuracyPct: json['accuracy_pct'] as int,
-        avgResponseTimeMs: json['avg_response_time_ms'] as int? ?? 0,
-        durationMs: json['duration_ms'] as int? ?? 0,
-        personalBestScore: json['personal_best_score'] as int?,
-        isNewPersonalBest: json['is_new_personal_best'] as bool? ?? false,
-        personalBestStreak: json['personal_best_streak'] as int?,
-        isNewBestStreak: json['is_new_best_streak'] as bool? ?? false,
-        isPerfectRush: json['is_perfect_rush'] as bool? ?? false,
-        xpAwarded: json['xp_awarded'] as int? ?? 0,
-        lifetimeXp: json['lifetime_xp'] as int? ?? 0,
-        level: json['level'] as int? ?? 1,
-        leveledUp: json['leveled_up'] as bool? ?? false,
-        xpIntoLevel: json['xp_into_level'] as int? ?? 0,
-        xpForNextLevel: json['xp_for_next_level'] as int? ?? 1,
-        newlyUnlockedAchievements: (json['newly_unlocked_achievements'] as List? ?? [])
+    score: json['score'] as int,
+    questionsTotal: json['questions_total'] as int? ?? 0,
+    questionsAnswered: json['questions_answered'] as int? ?? 0,
+    correctCount: json['correct_count'] as int,
+    wrongCount: json['wrong_count'] as int,
+    bestStreak: json['best_streak'] as int,
+    accuracyPct: json['accuracy_pct'] as int,
+    avgResponseTimeMs: json['avg_response_time_ms'] as int? ?? 0,
+    durationMs: json['duration_ms'] as int? ?? 0,
+    personalBestScore: json['personal_best_score'] as int?,
+    isNewPersonalBest: json['is_new_personal_best'] as bool? ?? false,
+    personalBestStreak: json['personal_best_streak'] as int?,
+    isNewBestStreak: json['is_new_best_streak'] as bool? ?? false,
+    isPerfectRush: json['is_perfect_rush'] as bool? ?? false,
+    xpAwarded: json['xp_awarded'] as int? ?? 0,
+    lifetimeXp: json['lifetime_xp'] as int? ?? 0,
+    level: json['level'] as int? ?? 1,
+    leveledUp: json['leveled_up'] as bool? ?? false,
+    xpIntoLevel: json['xp_into_level'] as int? ?? 0,
+    xpForNextLevel: json['xp_for_next_level'] as int? ?? 1,
+    newlyUnlockedAchievements:
+        (json['newly_unlocked_achievements'] as List? ?? [])
             .map((a) => Achievement.fromJson(a as Map<String, dynamic>))
             .toList(),
-        isDailyRush: json['is_daily_rush'] as bool? ?? false,
-        dailyRank: json['daily_rank'] as int?,
-        dailyPreviousBestScore: json['daily_previous_best_score'] as int?,
-        isNewDailyBest: json['is_new_daily_best'] as bool? ?? false,
-        newlyCompletedMissions: (json['newly_completed_missions'] as List? ?? [])
-            .map((m) => CompletedMission.fromJson(m as Map<String, dynamic>))
-            .toList(),
-        xpMultiplierApplied: (json['xp_multiplier_applied'] as num?)?.toDouble() ?? 1.0,
-        dailyStreakCurrent: json['daily_streak_current'] as int? ?? 0,
-        dailyStreakLongest: json['daily_streak_longest'] as int? ?? 0,
-      );
+    isDailyRush: json['is_daily_rush'] as bool? ?? false,
+    dailyRank: json['daily_rank'] as int?,
+    dailyPreviousBestScore: json['daily_previous_best_score'] as int?,
+    isNewDailyBest: json['is_new_daily_best'] as bool? ?? false,
+    newlyCompletedMissions: (json['newly_completed_missions'] as List? ?? [])
+        .map((m) => CompletedMission.fromJson(m as Map<String, dynamic>))
+        .toList(),
+    xpMultiplierApplied:
+        (json['xp_multiplier_applied'] as num?)?.toDouble() ?? 1.0,
+    dailyStreakCurrent: json['daily_streak_current'] as int? ?? 0,
+    dailyStreakLongest: json['daily_streak_longest'] as int? ?? 0,
+  );
 }
 
 class ClueReveal {
@@ -261,22 +273,30 @@ class ClueReveal {
   final String clueText;
   final int cluesTotal;
 
-  const ClueReveal({required this.cluesRevealed, required this.clueText, required this.cluesTotal});
+  const ClueReveal({
+    required this.cluesRevealed,
+    required this.clueText,
+    required this.cluesTotal,
+  });
 
   factory ClueReveal.fromJson(Map<String, dynamic> json) => ClueReveal(
-        cluesRevealed: json['clues_revealed'] as int,
-        clueText: json['clue_text'] as String,
-        cluesTotal: json['clues_total'] as int,
-      );
+    cluesRevealed: json['clues_revealed'] as int,
+    clueText: json['clue_text'] as String,
+    cluesTotal: json['clues_total'] as int,
+  );
 }
 
 class RemoveOneResult {
   final int removedOptionIndex;
   final int usesRemaining;
 
-  const RemoveOneResult({required this.removedOptionIndex, required this.usesRemaining});
+  const RemoveOneResult({
+    required this.removedOptionIndex,
+    required this.usesRemaining,
+  });
 
-  factory RemoveOneResult.fromJson(Map<String, dynamic> json) => RemoveOneResult(
+  factory RemoveOneResult.fromJson(Map<String, dynamic> json) =>
+      RemoveOneResult(
         removedOptionIndex: json['removed_option_index'] as int,
         usesRemaining: json['uses_remaining'] as int,
       );
@@ -289,7 +309,9 @@ class QuizApi {
 
   Future<List<Category>> getCategories() async {
     final rows = await _api.getList('/api/categories');
-    return rows.map((r) => Category.fromJson(r as Map<String, dynamic>)).toList();
+    return rows
+        .map((r) => Category.fromJson(r as Map<String, dynamic>))
+        .toList();
   }
 
   Future<SessionStart> createSession(int categoryId) async {
@@ -308,8 +330,13 @@ class QuizApi {
   /// client-side (e.g. once narration finishes), so its authoritative timing
   /// clock for this question reflects when the player could realistically
   /// start answering rather than the moment it merely became current.
-  Future<void> startQuestion({required int sessionId, required int questionId}) async {
-    await _api.post('/api/sessions/$sessionId/start', {'question_id': questionId});
+  Future<void> startQuestion({
+    required int sessionId,
+    required int questionId,
+  }) async {
+    await _api.post('/api/sessions/$sessionId/start', {
+      'question_id': questionId,
+    });
   }
 
   Future<AnswerResult> submitAnswer({
@@ -334,6 +361,17 @@ class QuizApi {
   Future<PlayerProfile> getProfile() async {
     final res = await _api.get('/api/profile');
     return PlayerProfile.fromJson(res);
+  }
+
+  Future<List<Reward>> getRewards() async {
+    final res = await _api.get('/api/rewards');
+    return (res['rewards'] as List)
+        .map((r) => Reward.fromJson(r as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> claimReward(String key) async {
+    await _api.post('/api/rewards/$key/claim');
   }
 
   Future<DailyRushStatus> getDailyRushStatus() async {
@@ -393,7 +431,9 @@ class QuizApi {
   /// Safe to call more than once before answering — the server returns the
   /// same removed option rather than spending a second charge.
   Future<RemoveOneResult> useRemoveOne(int sessionId) async {
-    final res = await _api.post('/api/sessions/$sessionId/power-ups/remove-one');
+    final res = await _api.post(
+      '/api/sessions/$sessionId/power-ups/remove-one',
+    );
     return RemoveOneResult.fromJson(res);
   }
 
@@ -415,7 +455,9 @@ class QuizApi {
       'offset': '$offset',
       if (categoryId != null) 'category_id': '$categoryId',
     };
-    final query = params.entries.map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}').join('&');
+    final query = params.entries
+        .map((e) => '${e.key}=${Uri.encodeQueryComponent(e.value)}')
+        .join('&');
     final res = await _api.get('/api/leaderboard?$query');
     return LeaderboardPage.fromJson(res);
   }

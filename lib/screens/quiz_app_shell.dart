@@ -12,6 +12,7 @@ import 'pick_rush_screen.dart';
 import 'play_with_friends_screen.dart';
 import 'profile_screen.dart';
 import 'results_screen.dart';
+import 'rewards_screen.dart';
 import 'settings_screen.dart';
 import 'signup_screen.dart';
 
@@ -116,6 +117,11 @@ class _QuizAppShellState extends State<QuizAppShell> {
       case AppScreen.settings:
         return SettingsScreen(
           key: const ValueKey('settings'),
+          controller: controller,
+        );
+      case AppScreen.rewards:
+        return RewardsScreen(
+          key: const ValueKey('rewards'),
           controller: controller,
         );
     }

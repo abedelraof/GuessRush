@@ -13,6 +13,7 @@ import '../models/mission.dart';
 import '../models/player.dart';
 import '../models/player_profile.dart';
 import '../models/question.dart';
+import '../models/reward.dart';
 import '../services/api_client.dart';
 import '../services/audio_player_service.dart';
 import '../services/auth_service.dart';
@@ -37,6 +38,7 @@ enum AppScreen {
   leaderboard,
   events,
   settings,
+  rewards,
 }
 
 /// Which sub-flow matchWaitingScreen is showing — set by whichever
@@ -185,6 +187,13 @@ class QuizController extends ChangeNotifier {
   double lastXpMultiplierApplied = 1.0;
   int dailyStreakCurrent = 0;
   bool dailyStreakJustExtended = false;
+
+  // Rewards screen — one-time coin claims for milestones tracked elsewhere
+  // (level, daily streak, achievements). Loaded only when the screen is
+  // opened, unlike profile/homeSummary above. `claimingRewardKey` gates just
+  // the one row being claimed, not the whole screen.
+  List<Reward>? rewards;
+  String? claimingRewardKey;
 
   // Strategic mechanics (Phase 5) — clues, the Remove One power-up, and the
   // Double Down risk/reward decision. All server-authoritative: the client only
@@ -996,6 +1005,41 @@ class QuizController extends ChangeNotifier {
     notifyListeners();
     loadHome(); // refresh missions/streak/events in case it's been a while
     loadDailyRushStatus();
+  }
+
+  Future<void> loadRewards() async {
+    try {
+      rewards = await quizApi.getRewards();
+      notifyListeners();
+    } on ApiException {
+      // Non-fatal — same as loadProfile above.
+    }
+  }
+
+  void goToRewards() {
+    screen = AppScreen.rewards;
+    notifyListeners();
+    loadRewards();
+  }
+
+  /// Claims one reward's coin payout. `key` must be one currently unlocked
+  /// and unclaimed (rewards.dart) — the server re-validates both regardless.
+  Future<void> claimReward(String key) async {
+    if (claimingRewardKey != null) return;
+    claimingRewardKey = key;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      await quizApi.claimReward(key);
+      HapticsService.instance.mediumImpact();
+      await loadRewards();
+      await loadProfile(); // coin balance just changed
+    } on ApiException catch (e) {
+      errorMessage = e.message;
+    } finally {
+      claimingRewardKey = null;
+      notifyListeners();
+    }
   }
 
   void goToLeaderboard({LeaderboardPeriod? period}) {

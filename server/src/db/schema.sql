@@ -85,6 +85,23 @@ CREATE TABLE IF NOT EXISTS player_achievements (
   UNIQUE KEY uniq_player_achievement (player_id, achievement_key)
 ) ENGINE=InnoDB;
 
+-- One row per one-time reward a player has claimed (a level-up, daily-streak
+-- milestone, or achievement coin bonus — see rewards.config.js). The unique
+-- constraint is what makes claiming idempotent — a second claim attempt for
+-- the same reward_key fails the INSERT rather than double-paying coins.
+-- `coins` is stored (not just derived from the catalog at read time) so a
+-- later change to the catalog's payout amounts can't retroactively alter
+-- what a past claim actually paid.
+CREATE TABLE IF NOT EXISTS player_reward_claims (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  player_id INT NOT NULL,
+  reward_key VARCHAR(64) NOT NULL,
+  coins INT NOT NULL,
+  claimed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (player_id) REFERENCES players(id),
+  UNIQUE KEY uniq_player_reward (player_id, reward_key)
+) ENGINE=InnoDB;
+
 CREATE TABLE IF NOT EXISTS game_sessions (
   id INT PRIMARY KEY AUTO_INCREMENT,
   player_id INT NOT NULL,
