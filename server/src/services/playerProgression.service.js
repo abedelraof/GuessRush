@@ -1,4 +1,5 @@
 const { SPEED_DEMON_SPEED_MULTIPLIER } = require('../config/progression.config');
+const { COINS_PER_CORRECT_ANSWER } = require('../config/economy.config');
 const { levelForXp, calculateXpAward, evaluateAchievements } = require('./progression.service');
 
 /** True if this player has ever answered a question at/above the Speed Demon threshold. */
@@ -47,6 +48,8 @@ async function applyRushProgression(connection, {
   const newQuestionsCorrect = player.questions_correct + correctCount;
   const newTotalResponseTimeMs = player.total_response_time_ms + sumResponseTimeMs;
   const newPerfectRushCount = player.perfect_rush_count + (isPerfectRush ? 1 : 0);
+  const coinsAwarded = correctCount * COINS_PER_CORRECT_ANSWER;
+  const newCoins = player.coins + coinsAwarded;
 
   const isNewBestScore = rushScore > player.best_rush_score;
   const isNewBestStreak = bestStreak > player.best_streak;
@@ -65,12 +68,12 @@ async function applyRushProgression(connection, {
     `UPDATE players SET
       level = ?, lifetime_xp = ?, rushes_completed = ?, questions_answered = ?, questions_correct = ?,
       total_response_time_ms = ?, best_rush_score = ?, best_streak = ?, best_accuracy_pct = ?,
-      fastest_avg_response_time_ms = ?, perfect_rush_count = ?
+      fastest_avg_response_time_ms = ?, perfect_rush_count = ?, coins = ?
      WHERE id = ?`,
     [
       levelInfo.level, newLifetimeXp, newRushesCompleted, newQuestionsAnswered, newQuestionsCorrect,
       newTotalResponseTimeMs, newBestRushScore, newBestStreak, newBestAccuracyPct,
-      newFastestAvgResponseTimeMs, newPerfectRushCount, playerId,
+      newFastestAvgResponseTimeMs, newPerfectRushCount, newCoins, playerId,
     ]
   );
 

@@ -2,6 +2,7 @@ const pool = require('../config/db');
 const ApiError = require('../utils/ApiError');
 const { levelForXp } = require('../services/progression.service');
 const { ACHIEVEMENTS } = require('../config/progression.config');
+const { projectEnergy, ENERGY_MAX } = require('../services/energy.service');
 
 /** Full persistent profile: level/XP progress, lifetime stats, personal records, achievements. */
 async function getProfile(req, res) {
@@ -15,6 +16,7 @@ async function getProfile(req, res) {
   const unlockedByKey = new Map(unlockedRows.map((r) => [r.achievement_key, r.unlocked_at]));
 
   const levelInfo = levelForXp(player.lifetime_xp);
+  const { energy, nextRegenAt } = projectEnergy(player.energy, player.energy_updated_at);
 
   res.json({
     display_name: player.display_name,
@@ -22,6 +24,10 @@ async function getProfile(req, res) {
     lifetime_xp: player.lifetime_xp,
     xp_into_level: levelInfo.xpIntoLevel,
     xp_for_next_level: levelInfo.xpForNextLevel,
+    energy,
+    energy_max: ENERGY_MAX,
+    energy_regen_seconds: nextRegenAt ? Math.max(0, Math.round((nextRegenAt.getTime() - Date.now()) / 1000)) : null,
+    coins: player.coins,
     stats: {
       rushes_completed: player.rushes_completed,
       questions_answered: player.questions_answered,

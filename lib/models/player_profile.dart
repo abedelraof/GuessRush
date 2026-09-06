@@ -18,12 +18,14 @@ class Achievement {
   });
 
   factory Achievement.fromJson(Map<String, dynamic> json) => Achievement(
-        key: json['key'] as String,
-        name: json['name'] as String,
-        description: json['description'] as String,
-        unlocked: json['unlocked'] as bool? ?? true,
-        unlockedAt: json['unlocked_at'] != null ? DateTime.tryParse(json['unlocked_at'] as String) : null,
-      );
+    key: json['key'] as String,
+    name: json['name'] as String,
+    description: json['description'] as String,
+    unlocked: json['unlocked'] as bool? ?? true,
+    unlockedAt: json['unlocked_at'] != null
+        ? DateTime.tryParse(json['unlocked_at'] as String)
+        : null,
+  );
 }
 
 class ProfileStats {
@@ -42,12 +44,12 @@ class ProfileStats {
   });
 
   factory ProfileStats.fromJson(Map<String, dynamic> json) => ProfileStats(
-        rushesCompleted: json['rushes_completed'] as int,
-        questionsAnswered: json['questions_answered'] as int,
-        questionsCorrect: json['questions_correct'] as int,
-        accuracyPct: json['accuracy_pct'] as int,
-        avgResponseTimeMs: json['avg_response_time_ms'] as int,
-      );
+    rushesCompleted: json['rushes_completed'] as int,
+    questionsAnswered: json['questions_answered'] as int,
+    questionsCorrect: json['questions_correct'] as int,
+    accuracyPct: json['accuracy_pct'] as int,
+    avgResponseTimeMs: json['avg_response_time_ms'] as int,
+  );
 }
 
 class ProfileRecords {
@@ -66,12 +68,12 @@ class ProfileRecords {
   });
 
   factory ProfileRecords.fromJson(Map<String, dynamic> json) => ProfileRecords(
-        bestRushScore: json['best_rush_score'] as int,
-        bestStreak: json['best_streak'] as int,
-        bestAccuracyPct: json['best_accuracy_pct'] as int,
-        fastestAvgResponseTimeMs: json['fastest_avg_response_time_ms'] as int?,
-        perfectRushCount: json['perfect_rush_count'] as int,
-      );
+    bestRushScore: json['best_rush_score'] as int,
+    bestStreak: json['best_streak'] as int,
+    bestAccuracyPct: json['best_accuracy_pct'] as int,
+    fastestAvgResponseTimeMs: json['fastest_avg_response_time_ms'] as int?,
+    perfectRushCount: json['perfect_rush_count'] as int,
+  );
 }
 
 class PlayerProfile {
@@ -80,6 +82,11 @@ class PlayerProfile {
   final int lifetimeXp;
   final int xpIntoLevel;
   final int xpForNextLevel;
+  final int energy;
+  final int energyMax;
+  // Seconds until the next energy point regenerates, or null when already full.
+  final int? energyRegenSeconds;
+  final int coins;
   final ProfileStats stats;
   final ProfileRecords records;
   final List<Achievement> achievements;
@@ -90,23 +97,32 @@ class PlayerProfile {
     required this.lifetimeXp,
     required this.xpIntoLevel,
     required this.xpForNextLevel,
+    required this.energy,
+    required this.energyMax,
+    this.energyRegenSeconds,
+    required this.coins,
     required this.stats,
     required this.records,
     required this.achievements,
   });
 
-  double get levelProgress => xpForNextLevel > 0 ? (xpIntoLevel / xpForNextLevel).clamp(0, 1) : 0;
+  double get levelProgress =>
+      xpForNextLevel > 0 ? (xpIntoLevel / xpForNextLevel).clamp(0, 1) : 0;
 
   factory PlayerProfile.fromJson(Map<String, dynamic> json) => PlayerProfile(
-        displayName: json['display_name'] as String,
-        level: json['level'] as int,
-        lifetimeXp: json['lifetime_xp'] as int,
-        xpIntoLevel: json['xp_into_level'] as int,
-        xpForNextLevel: json['xp_for_next_level'] as int,
-        stats: ProfileStats.fromJson(json['stats'] as Map<String, dynamic>),
-        records: ProfileRecords.fromJson(json['records'] as Map<String, dynamic>),
-        achievements: (json['achievements'] as List)
-            .map((a) => Achievement.fromJson(a as Map<String, dynamic>))
-            .toList(),
-      );
+    displayName: json['display_name'] as String,
+    level: json['level'] as int,
+    lifetimeXp: json['lifetime_xp'] as int,
+    xpIntoLevel: json['xp_into_level'] as int,
+    xpForNextLevel: json['xp_for_next_level'] as int,
+    energy: json['energy'] as int,
+    energyMax: json['energy_max'] as int,
+    energyRegenSeconds: json['energy_regen_seconds'] as int?,
+    coins: json['coins'] as int,
+    stats: ProfileStats.fromJson(json['stats'] as Map<String, dynamic>),
+    records: ProfileRecords.fromJson(json['records'] as Map<String, dynamic>),
+    achievements: (json['achievements'] as List)
+        .map((a) => Achievement.fromJson(a as Map<String, dynamic>))
+        .toList(),
+  );
 }

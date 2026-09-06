@@ -16,6 +16,9 @@ class HomeScreen extends StatelessWidget {
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
     final level = controller.profile?.level;
     final trophyScore = controller.profile?.records.bestRushScore ?? 0;
+    final energy = controller.profile?.energy;
+    final energyMax = controller.profile?.energyMax ?? 5;
+    final coins = controller.profile?.coins;
 
     // No longer paints its own background image — QuizAppShell now uses
     // this same background.png as the app-wide default, so Home just
@@ -43,6 +46,9 @@ class HomeScreen extends StatelessWidget {
                     initial: initial,
                     level: level,
                     trophyScore: trophyScore,
+                    energy: energy,
+                    energyMax: energyMax,
+                    coins: coins,
                   ),
                   // --- ROW 2: logo + buttons — gets the rest of the
                   // space (Expanded, above). It has two rows of its own:
@@ -62,7 +68,9 @@ class HomeScreen extends StatelessWidget {
                         const SizedBox(height: 22),
                         GuessRushPlayButton(onPressed: controller.playNow),
                         const SizedBox(height: 14),
-                        _PlayWithFriendsButton(onTap: controller.goToPlayWithFriends),
+                        _PlayWithFriendsButton(
+                          onTap: controller.goToPlayWithFriends,
+                        ),
                         const SizedBox(height: 14),
                         _IconGrid(onTapLeaderboard: controller.goToLeaderboard),
                         const SizedBox(height: 16),
@@ -87,18 +95,20 @@ class HomeScreen extends StatelessWidget {
 
 /// Avatar (initials — the app has no avatar-image system), name, level ring,
 /// and a personal-best "trophy" pill on the left; Energy/Coins on the right.
-/// Energy and Coins are intentionally NOT wired to any real system — there's
-/// no play-limiting resource or currency economy in GuessRush today, and
-/// building one is a real product decision, not a reskin detail (see Phase 6's
-/// "avoid a currency economy unless there's a real product need"). These are
-/// static display chrome matching the requested look; wire them up for real
-/// if/when that decision is made.
+/// Both are real, server-backed player state (see `PlayerProfile.energy` /
+/// `.coins`) — energy gates starting a fresh Rush and regenerates over time,
+/// coins are a lifetime currency earned per correct answer. Null until the
+/// profile has loaded once, in which case the pills show a "-" placeholder
+/// rather than a wrong number.
 class _TopBar extends StatelessWidget {
   final QuizController controller;
   final String name;
   final String initial;
   final int? level;
   final int trophyScore;
+  final int? energy;
+  final int energyMax;
+  final int? coins;
 
   const _TopBar({
     required this.controller,
@@ -106,6 +116,9 @@ class _TopBar extends StatelessWidget {
     required this.initial,
     required this.level,
     required this.trophyScore,
+    required this.energy,
+    required this.energyMax,
+    required this.coins,
   });
 
   @override
@@ -230,16 +243,32 @@ class _TopBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        const _ResourcePill(icon: '⚡', value: '5/5', color: AppColors.tileBlue),
+        _ResourcePill(
+          icon: '⚡',
+          value: energy != null ? '$energy/$energyMax' : '-/-',
+          color: AppColors.tileBlue,
+        ),
         const SizedBox(width: 8),
-        const _ResourcePill(
+        _ResourcePill(
           icon: '🪙',
-          value: '1,250',
+          value: coins != null ? _withThousandsSeparator(coins!) : '-',
           color: AppColors.coinGold,
         ),
       ],
     );
   }
+}
+
+/// "1250" -> "1,250". No `intl` dependency in this app yet, and this is the
+/// only place that needs it — not worth adding one for a single call site.
+String _withThousandsSeparator(int value) {
+  final digits = value.toString();
+  final buffer = StringBuffer();
+  for (int i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
 }
 
 class _ResourcePill extends StatelessWidget {
@@ -520,7 +549,11 @@ class _BottomNav extends StatelessWidget {
   final VoidCallback onTapStats;
   final VoidCallback onTapSettings;
 
-  const _BottomNav({required this.onTapEvents, required this.onTapStats, required this.onTapSettings});
+  const _BottomNav({
+    required this.onTapEvents,
+    required this.onTapStats,
+    required this.onTapSettings,
+  });
 
   @override
   Widget build(BuildContext context) {

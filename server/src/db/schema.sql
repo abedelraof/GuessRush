@@ -63,6 +63,13 @@ CREATE TABLE IF NOT EXISTS players (
   daily_streak_current INT NOT NULL DEFAULT 0,
   daily_streak_longest INT NOT NULL DEFAULT 0,
   daily_streak_last_date DATE NULL DEFAULT NULL,
+  -- Energy/coins economy: energy gates starting a Rush (see energy.config.js),
+  -- coins are a lifetime-earned currency with no spend yet. energy_updated_at
+  -- anchors the regen projection in energy.service.js — it is NOT "last
+  -- login", it's specifically "when energy was last spent/computed".
+  energy INT NOT NULL DEFAULT 5,
+  energy_updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  coins INT NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 

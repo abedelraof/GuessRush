@@ -321,8 +321,16 @@ class QuizController extends ChangeNotifier {
       // was played as a guest (XP, level, stats) carries over, instead of
       // abandoning it for a brand-new player row.
       player = (player?.isGuest ?? false)
-          ? await authService.upgrade(email: email, password: password, displayName: displayName)
-          : await authService.signup(email: email, password: password, displayName: displayName);
+          ? await authService.upgrade(
+              email: email,
+              password: password,
+              displayName: displayName,
+            )
+          : await authService.signup(
+              email: email,
+              password: password,
+              displayName: displayName,
+            );
       authLoading = false;
       await _loadCategoriesAndGoHome();
       _continueAfterAuthGate();
@@ -459,7 +467,8 @@ class QuizController extends ChangeNotifier {
     try {
       // Waits for the clip to actually finish (not just start) so the
       // countdown tick only kicks in once the narrator stops speaking.
-      if (_settings.narrationEnabled) await AudioPlayerService.instance.playUrl(url);
+      if (_settings.narrationEnabled)
+        await AudioPlayerService.instance.playUrl(url);
     } catch (e) {
       audioError = 'Audio failed to play: $e';
       notifyListeners();
@@ -1079,6 +1088,7 @@ class QuizController extends ChangeNotifier {
     matchResult = null;
     screen = AppScreen.home;
     notifyListeners();
+    loadProfile(); // energy may have changed (a Rush was started, or simply regenerated) since we last showed Home
   }
 
   /// Shared by a normal Rush (selectCategory) and Daily Rush (startDailyRush) —

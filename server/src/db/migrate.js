@@ -77,6 +77,12 @@ const COLUMN_MIGRATIONS = [
   // Guest accounts (home screen no longer requires signing in): auto-provisioned
   // real players rows, flagged so the client knows to gate Play With Friends.
   'ALTER TABLE players ADD COLUMN is_guest TINYINT(1) NOT NULL DEFAULT 0 AFTER role',
+  // Energy/coins economy: the home screen's energy/coin pills go from static
+  // display chrome to real, persisted state. See economy.config.js and
+  // energy.service.js for the regen/consume logic these columns back.
+  'ALTER TABLE players ADD COLUMN energy INT NOT NULL DEFAULT 5 AFTER daily_streak_last_date',
+  'ALTER TABLE players ADD COLUMN energy_updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP AFTER energy',
+  'ALTER TABLE players ADD COLUMN coins INT NOT NULL DEFAULT 0 AFTER energy_updated_at',
 ];
 
 // Backfills players' lifetime stats/records from their existing completed game_sessions/answers
