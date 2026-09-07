@@ -96,7 +96,7 @@
               <%- !question.id ? 'data-hidden-path-selector=".q-audio-path-input"' : '' %>>
               🔊 Generate Audio
             </button>
-            <audio controls class="q-audio-player <%= question.audio_path ? '' : 'hidden' %> mt-2 w-full" preload="none" <%- question.audio_path ? `src="${question.audio_path}"` : '' %>></audio>
+            <audio controls class="q-audio-player <%= question.audio_path ? '' : 'hidden' %> mt-2 w-full" preload="none" <% if (question.audio_path) { %>src="<%= question.audio_path %>"<% } %>></audio>
             <p class="q-audio-error hidden text-xs text-rose-600 mt-1"></p>
           </div>
 
@@ -131,7 +131,7 @@
               <p class="q-video-error hidden text-xs text-rose-600"></p>
             </div>
             <p class="text-xs text-slate-400 mt-2">Can take several minutes — feel free to keep editing while it runs.</p>
-            <video controls class="q-video-player <%= question.video_path ? '' : 'hidden' %> mt-2 w-full rounded-lg" preload="none" <%- question.video_path ? `src="${question.video_path}"` : '' %>></video>
+            <video controls class="q-video-player <%= question.video_path ? '' : 'hidden' %> mt-2 w-full rounded-lg" preload="none" <% if (question.video_path) { %>src="<%= question.video_path %>"<% } %>></video>
           </div>
 
           <div class="type-fields hidden border-t border-slate-100 pt-5" data-types="emoji">
@@ -188,7 +188,7 @@
                     <div class="shrink-0">
                       <label class="field-label">Generated image</label>
                       <div class="w-full aspect-square sm:w-36 sm:h-36 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden">
-                        <img class="opt-image-preview <%= optImg ? '' : 'hidden' %> w-full h-full object-cover" alt="" <%- optImg ? `src="${optImg}"` : '' %>>
+                        <img class="opt-image-preview <%= optImg ? '' : 'hidden' %> w-full h-full object-cover" alt="" <% if (optImg) { %>src="<%= optImg %>"<% } %>>
                         <span class="opt-image-placeholder <%= optImg ? 'hidden' : '' %> text-xs text-slate-400 text-center px-3">No image yet</span>
                       </div>
                     </div>

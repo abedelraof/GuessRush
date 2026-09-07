@@ -26,6 +26,11 @@ function saveImageForQuestionOption(questionId, optionIndex, buffer) {
 function attachTempImage(questionId, optionIndex, tempImagePath) {
   if (!tempImagePath) return null;
   const from = path.join(IMAGE_DIR, tempImagePath);
+  // tempImagePath comes straight from an admin-form POST field, not from
+  // something we generated — join() alone doesn't stop it walking out of
+  // TMP_DIR with a crafted "../../../whatever" and getting renamed into the
+  // *public* images directory. Reject anything that resolves outside TMP_DIR.
+  if (!from.startsWith(TMP_DIR + path.sep)) return null;
   if (!fs.existsSync(from)) return null;
   const imagePath = `${questionId}-${optionIndex}.png`;
   fs.renameSync(from, path.join(IMAGE_DIR, imagePath));

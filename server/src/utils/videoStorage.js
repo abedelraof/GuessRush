@@ -26,6 +26,11 @@ function saveVideoForQuestion(questionId, buffer) {
 function attachTempVideo(questionId, tempVideoPath) {
   if (!tempVideoPath) return null;
   const from = path.join(VIDEO_DIR, tempVideoPath);
+  // tempVideoPath comes straight from an admin-form POST field, not from
+  // something we generated — join() alone doesn't stop it walking out of
+  // TMP_DIR with a crafted "../../../whatever" and getting renamed into the
+  // *public* video directory. Reject anything that resolves outside TMP_DIR.
+  if (!from.startsWith(TMP_DIR + path.sep)) return null;
   if (!fs.existsSync(from)) return null;
   const videoPath = `${questionId}.mp4`;
   fs.renameSync(from, path.join(VIDEO_DIR, videoPath));

@@ -26,6 +26,11 @@ function saveAudioForQuestion(questionId, buffer) {
 function attachTempAudio(questionId, tempAudioPath) {
   if (!tempAudioPath) return null;
   const from = path.join(AUDIO_DIR, tempAudioPath);
+  // tempAudioPath comes straight from an admin-form POST field, not from
+  // something we generated — join() alone doesn't stop it walking out of
+  // TMP_DIR with a crafted "../../../whatever" and getting renamed into the
+  // *public* audio directory. Reject anything that resolves outside TMP_DIR.
+  if (!from.startsWith(TMP_DIR + path.sep)) return null;
   if (!fs.existsSync(from)) return null;
   const audioPath = `${questionId}.flac`;
   fs.renameSync(from, path.join(AUDIO_DIR, audioPath));
