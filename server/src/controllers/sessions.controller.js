@@ -4,7 +4,6 @@ const questionSelectionService = require('../services/questionSelection.service'
 const { evaluateTiming } = require('../services/rushTiming.service');
 const { scoreAnswer } = require('../services/scoring.service');
 const { applyRushProgression } = require('../services/playerProgression.service');
-const { consumeEnergy } = require('../services/energy.service');
 const { levelForXp } = require('../services/progression.service');
 const { ACHIEVEMENTS } = require('../config/progression.config');
 const { REMOVE_ONE_USES_PER_RUSH, DOUBLE_DOWN_STREAK_THRESHOLD } = require('../config/mechanics.config');
@@ -82,26 +81,13 @@ async function create(req, res) {
     throw new ApiError(400, 'This category has no questions yet');
   }
 
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-    // Starting a fresh Rush costs 1 energy — Daily Rush (dailyRush.controller.js) is
-    // deliberately exempt, see economy.config.js.
-    await consumeEnergy(connection, req.user.id);
-    const sessionId = await insertSession(connection, { playerId: req.user.id, categoryId, questionRows });
-    await connection.commit();
+  const sessionId = await insertSession(pool, { playerId: req.user.id, categoryId, questionRows });
 
-    res.status(201).json({
-      session_id: sessionId,
-      questions: questionRows.map(serializeQuestion),
-      remove_one_uses_remaining: REMOVE_ONE_USES_PER_RUSH,
-    });
-  } catch (err) {
-    await connection.rollback();
-    throw err;
-  } finally {
-    connection.release();
-  }
+  res.status(201).json({
+    session_id: sessionId,
+    questions: questionRows.map(serializeQuestion),
+    remove_one_uses_remaining: REMOVE_ONE_USES_PER_RUSH,
+  });
 }
 
 /** Loads the session row (locked FOR UPDATE) and validates common preconditions shared by /start and /answers. */

@@ -331,8 +331,6 @@ class FakeQuizApi extends QuizApi {
       lifetimeXp: xpIntoLevelOverride,
       xpIntoLevel: xpIntoLevelOverride,
       xpForNextLevel: xpForNextLevelOverride,
-      energy: 5,
-      energyMax: 5,
       coins: 0,
       stats: const ProfileStats(
         rushesCompleted: 1,
@@ -1293,8 +1291,6 @@ void main() {
           lifetimeXp: 4200,
           xpIntoLevel: 150,
           xpForNextLevel: 300,
-          energy: 5,
-          energyMax: 5,
           coins: 0,
           stats: ProfileStats(
             rushesCompleted: 20,
@@ -1392,8 +1388,6 @@ void main() {
           lifetimeXp: 4200,
           xpIntoLevel: 150,
           xpForNextLevel: 300,
-          energy: 5,
-          energyMax: 5,
           coins: 0,
           stats: ProfileStats(
             rushesCompleted: 20,

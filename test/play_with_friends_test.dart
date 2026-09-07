@@ -512,8 +512,6 @@ void main() {
             lifetimeXp: 500,
             xpIntoLevel: 100,
             xpForNextLevel: 300,
-            energy: 5,
-            energyMax: 5,
             coins: 0,
             stats: ProfileStats(
               rushesCompleted: 1,

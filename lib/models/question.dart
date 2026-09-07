@@ -2,7 +2,8 @@ import '../services/api_client.dart';
 
 enum QuestionType { image, audio, video, text, emoji, progressive }
 
-QuestionType _typeFromString(String s) => QuestionType.values.firstWhere((t) => t.name == s);
+QuestionType _typeFromString(String s) =>
+    QuestionType.values.firstWhere((t) => t.name == s);
 
 /// Resolves a root-relative media path from the API (e.g. "/public/audio/5.flac")
 /// into a fully-qualified URL against the configured server origin.

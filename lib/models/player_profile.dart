@@ -82,10 +82,6 @@ class PlayerProfile {
   final int lifetimeXp;
   final int xpIntoLevel;
   final int xpForNextLevel;
-  final int energy;
-  final int energyMax;
-  // Seconds until the next energy point regenerates, or null when already full.
-  final int? energyRegenSeconds;
   final int coins;
   final ProfileStats stats;
   final ProfileRecords records;
@@ -97,9 +93,6 @@ class PlayerProfile {
     required this.lifetimeXp,
     required this.xpIntoLevel,
     required this.xpForNextLevel,
-    required this.energy,
-    required this.energyMax,
-    this.energyRegenSeconds,
     required this.coins,
     required this.stats,
     required this.records,
@@ -115,9 +108,6 @@ class PlayerProfile {
     lifetimeXp: json['lifetime_xp'] as int,
     xpIntoLevel: json['xp_into_level'] as int,
     xpForNextLevel: json['xp_for_next_level'] as int,
-    energy: json['energy'] as int,
-    energyMax: json['energy_max'] as int,
-    energyRegenSeconds: json['energy_regen_seconds'] as int?,
     coins: json['coins'] as int,
     stats: ProfileStats.fromJson(json['stats'] as Map<String, dynamic>),
     records: ProfileRecords.fromJson(json['records'] as Map<String, dynamic>),

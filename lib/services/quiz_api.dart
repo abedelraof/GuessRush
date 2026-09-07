@@ -8,7 +8,6 @@ import '../models/mission.dart';
 import '../models/player_profile.dart';
 import '../models/question.dart';
 import '../models/reward.dart';
-import '../models/shop_catalog.dart';
 import 'api_client.dart';
 
 /// POST /api/matches/queue's immediate response when it pairs the caller
@@ -373,15 +372,6 @@ class QuizApi {
 
   Future<void> claimReward(String key) async {
     await _api.post('/api/rewards/$key/claim');
-  }
-
-  Future<ShopCatalog> getShopCatalog() async {
-    final res = await _api.get('/api/shop');
-    return ShopCatalog.fromJson(res);
-  }
-
-  Future<void> buyEnergyRefill() async {
-    await _api.post('/api/shop/energy/buy');
   }
 
   Future<DailyRushStatus> getDailyRushStatus() async {

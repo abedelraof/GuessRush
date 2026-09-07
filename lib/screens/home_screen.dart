@@ -16,8 +16,6 @@ class HomeScreen extends StatelessWidget {
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
     final level = controller.profile?.level;
     final trophyScore = controller.profile?.records.bestRushScore ?? 0;
-    final energy = controller.profile?.energy;
-    final energyMax = controller.profile?.energyMax ?? 5;
     final coins = controller.profile?.coins;
 
     // No longer paints its own background image — QuizAppShell now uses
@@ -46,8 +44,6 @@ class HomeScreen extends StatelessWidget {
                     initial: initial,
                     level: level,
                     trophyScore: trophyScore,
-                    energy: energy,
-                    energyMax: energyMax,
                     coins: coins,
                   ),
                   // --- ROW 2: logo + buttons — gets the rest of the
@@ -98,20 +94,18 @@ class HomeScreen extends StatelessWidget {
 }
 
 /// Avatar (initials — the app has no avatar-image system), name, level ring,
-/// and a personal-best "trophy" pill on the left; Energy/Coins on the right.
-/// Both are real, server-backed player state (see `PlayerProfile.energy` /
-/// `.coins`) — energy gates starting a fresh Rush and regenerates over time,
-/// coins are a lifetime currency earned per correct answer. Null until the
-/// profile has loaded once, in which case the pills show a "-" placeholder
-/// rather than a wrong number.
+/// and a personal-best "trophy" pill on the left; a coin balance on the
+/// right. Real, server-backed player state (`PlayerProfile.coins`) — a
+/// lifetime currency earned per correct answer. Null until the profile has
+/// loaded once, in which case the pill shows a "-" placeholder rather than a
+/// wrong number. No energy/play-limiting resource exists here — Rushes are
+/// unlimited.
 class _TopBar extends StatelessWidget {
   final QuizController controller;
   final String name;
   final String initial;
   final int? level;
   final int trophyScore;
-  final int? energy;
-  final int energyMax;
   final int? coins;
 
   const _TopBar({
@@ -120,8 +114,6 @@ class _TopBar extends StatelessWidget {
     required this.initial,
     required this.level,
     required this.trophyScore,
-    required this.energy,
-    required this.energyMax,
     required this.coins,
   });
 
@@ -245,12 +237,6 @@ class _TopBar extends StatelessWidget {
               ],
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        _ResourcePill(
-          icon: '⚡',
-          value: energy != null ? '$energy/$energyMax' : '-/-',
-          color: AppColors.tileBlue,
         ),
         const SizedBox(width: 8),
         _ResourcePill(
