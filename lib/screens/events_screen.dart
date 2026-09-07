@@ -247,21 +247,54 @@ class _DailyRushCard extends StatelessWidget {
     final status = controller.dailyRushStatus;
 
     if (status == null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.08),
+      final error = controller.dailyRushStatusError;
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          'Loading Daily Rush…',
-          style: AppFonts.inter(
-            size: 13,
-            weight: FontWeight.w700,
-            color: Colors.white.withValues(alpha: 0.85),
+          // Only the failed-load state is actually tappable — a plain
+          // "still loading" spinner has nothing useful to retry yet.
+          onTap: error != null ? controller.loadDailyRushStatus : null,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            alignment: Alignment.center,
+            child: error != null
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Couldn\'t load Daily Rush',
+                        style: AppFonts.inter(
+                          size: 13,
+                          weight: FontWeight.w700,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Tap to retry',
+                        style: AppFonts.inter(
+                          size: 11,
+                          weight: FontWeight.w600,
+                          color: Colors.white.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  )
+                : SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white.withValues(alpha: 0.85),
+                    ),
+                  ),
           ),
         ),
       );

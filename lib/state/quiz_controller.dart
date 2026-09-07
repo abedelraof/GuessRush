@@ -158,6 +158,11 @@ class QuizController extends ChangeNotifier {
   // refreshed on boot and after every finished Rush; the rest are this Rush's own
   // XP/level-up/achievement-unlock outcome, for the results screen's subtle feedback.
   PlayerProfile? profile;
+  // Only ever set when a load fails with nothing cached to fall back on
+  // (see loadProfile) — a background refresh failing while `profile` is
+  // already populated leaves this null, so a stale screen doesn't suddenly
+  // sprout an error banner over data it's still fine to keep showing.
+  String? profileError;
   int xpAwarded = 0;
   bool leveledUp = false;
   List<Achievement> newlyUnlockedAchievements = [];
@@ -167,6 +172,8 @@ class QuizController extends ChangeNotifier {
   // `profile`. `isDailyRush`/`dailyRank`/etc are this Rush's own outcome, only
   // meaningful when it was today's official Daily Rush attempt.
   DailyRushStatus? dailyRushStatus;
+  // Same "only set when there's nothing cached" rule as profileError.
+  String? dailyRushStatusError;
   bool isDailyRush = false;
   int? dailyRank;
   int? dailyPreviousBestScore;
@@ -184,6 +191,8 @@ class QuizController extends ChangeNotifier {
   // separate from homeSummary so the results screen doesn't wait on a second
   // network round-trip to show what just happened.
   HomeSummary? homeSummary;
+  // Same "only set when there's nothing cached" rule as profileError.
+  String? homeSummaryError;
   List<CompletedMission> newlyCompletedMissions = [];
   double lastXpMultiplierApplied = 1.0;
   int dailyStreakCurrent = 0;
@@ -194,6 +203,8 @@ class QuizController extends ChangeNotifier {
   // opened, unlike profile/homeSummary above. `claimingRewardKey` gates just
   // the one row being claimed, not the whole screen.
   List<Reward>? rewards;
+  // Same "only set when there's nothing cached" rule as profileError.
+  String? rewardsError;
   String? claimingRewardKey;
 
   // Strategic mechanics (Phase 5) — clues, the Remove One power-up, and the
@@ -970,28 +981,36 @@ class QuizController extends ChangeNotifier {
   Future<void> loadProfile() async {
     try {
       profile = await quizApi.getProfile();
+      profileError = null;
       notifyListeners();
-    } on ApiException {
-      // Non-fatal: whatever screen needs it (home badge, Profile screen) just
-      // keeps showing its last-known value, or its own "couldn't load" state.
+    } on ApiException catch (e) {
+      // A background refresh (profile already populated) just keeps showing
+      // the last-known value — only the screen's very first load, with
+      // nothing to fall back on, needs to surface this as a retry-able error.
+      if (profile == null) profileError = e.message;
+      notifyListeners();
     }
   }
 
   Future<void> loadDailyRushStatus() async {
     try {
       dailyRushStatus = await quizApi.getDailyRushStatus();
+      dailyRushStatusError = null;
       notifyListeners();
-    } on ApiException {
-      // Non-fatal — same as loadProfile above.
+    } on ApiException catch (e) {
+      if (dailyRushStatus == null) dailyRushStatusError = e.message;
+      notifyListeners();
     }
   }
 
   Future<void> loadHome() async {
     try {
       homeSummary = await quizApi.getHome();
+      homeSummaryError = null;
       notifyListeners();
-    } on ApiException {
-      // Non-fatal — same as loadProfile above.
+    } on ApiException catch (e) {
+      if (homeSummary == null) homeSummaryError = e.message;
+      notifyListeners();
     }
   }
 
@@ -1011,9 +1030,11 @@ class QuizController extends ChangeNotifier {
   Future<void> loadRewards() async {
     try {
       rewards = await quizApi.getRewards();
+      rewardsError = null;
       notifyListeners();
-    } on ApiException {
-      // Non-fatal — same as loadProfile above.
+    } on ApiException catch (e) {
+      if (rewards == null) rewardsError = e.message;
+      notifyListeners();
     }
   }
 

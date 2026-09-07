@@ -4,6 +4,7 @@ import '../models/leaderboard.dart';
 import '../state/quiz_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_styles.dart';
+import '../widgets/retry_message.dart';
 
 class LeaderboardScreen extends StatelessWidget {
   final QuizController controller;
@@ -124,7 +125,7 @@ class _Body extends StatelessWidget {
     }
     if (controller.leaderboardError != null &&
         controller.leaderboardPage == null) {
-      return _MessageState(
+      return RetryMessage(
         icon: '🔌',
         title: 'Couldn\'t load the leaderboard',
         subtitle: controller.leaderboardError!,
@@ -137,7 +138,7 @@ class _Body extends StatelessWidget {
     if (page == null) return const SizedBox.shrink();
 
     if (page.entries.isEmpty) {
-      return _MessageState(
+      return RetryMessage(
         icon: '🏆',
         title: page.period == LeaderboardPeriod.daily
             ? 'No Daily Rush scores yet'
@@ -314,81 +315,6 @@ class _MyPositionCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _MessageState extends StatelessWidget {
-  final String icon;
-  final String title;
-  final String subtitle;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  const _MessageState({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.actionLabel,
-    this.onAction,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(icon, style: const TextStyle(fontSize: 44)),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: AppFonts.baloo(size: 18),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: AppFonts.inter(
-                size: 13,
-                weight: FontWeight.w600,
-                color: Colors.white.withValues(alpha: 0.8),
-              ),
-            ),
-            if (actionLabel != null && onAction != null) ...[
-              const SizedBox(height: 18),
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: onAction,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.goldTimer,
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Text(
-                      actionLabel!,
-                      style: AppFonts.inter(
-                        size: 13,
-                        weight: FontWeight.w800,
-                        color: AppColors.darkText,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
       ),
     );
   }

@@ -4,6 +4,7 @@ import '../models/player_profile.dart';
 import '../state/quiz_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_styles.dart';
+import '../widgets/retry_message.dart';
 import '../widgets/stat_tile.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -31,7 +32,11 @@ class ProfileScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     alignment: Alignment.center,
-                    child: const Icon(Icons.arrow_back, size: 18, color: Colors.white),
+                    child: const Icon(
+                      Icons.arrow_back,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -41,7 +46,17 @@ class ProfileScreen extends StatelessWidget {
           ),
           Expanded(
             child: profile == null
-                ? const Center(child: CircularProgressIndicator(color: Colors.white))
+                ? (controller.profileError != null
+                      ? RetryMessage(
+                          icon: '🔌',
+                          title: 'Couldn\'t load your profile',
+                          subtitle: controller.profileError!,
+                          actionLabel: 'RETRY',
+                          onAction: controller.loadProfile,
+                        )
+                      : const Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        ))
                 : SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                     child: Column(
@@ -59,11 +74,24 @@ class ProfileScreen extends StatelessWidget {
                             crossAxisSpacing: 16,
                             childAspectRatio: 2.6,
                             children: [
-                              StatTile(value: '${profile.stats.rushesCompleted}', label: 'Rushes Completed', color: AppColors.linkPurple),
-                              StatTile(value: '${profile.stats.questionsAnswered}', label: 'Questions Answered', color: AppColors.darkText),
-                              StatTile(value: '${profile.stats.accuracyPct}%', label: 'Lifetime Accuracy', color: AppColors.correctStat),
                               StatTile(
-                                value: '${(profile.stats.avgResponseTimeMs / 1000).toStringAsFixed(1)}s',
+                                value: '${profile.stats.rushesCompleted}',
+                                label: 'Rushes Completed',
+                                color: AppColors.linkPurple,
+                              ),
+                              StatTile(
+                                value: '${profile.stats.questionsAnswered}',
+                                label: 'Questions Answered',
+                                color: AppColors.darkText,
+                              ),
+                              StatTile(
+                                value: '${profile.stats.accuracyPct}%',
+                                label: 'Lifetime Accuracy',
+                                color: AppColors.correctStat,
+                              ),
+                              StatTile(
+                                value:
+                                    '${(profile.stats.avgResponseTimeMs / 1000).toStringAsFixed(1)}s',
                                 label: 'Avg Response Time',
                                 color: AppColors.darkText,
                               ),
@@ -81,17 +109,35 @@ class ProfileScreen extends StatelessWidget {
                             crossAxisSpacing: 16,
                             childAspectRatio: 2.6,
                             children: [
-                              StatTile(value: '${profile.records.bestRushScore}', label: 'Best Rush Score', color: AppColors.finalScoreGold),
-                              StatTile(value: '🔥${profile.records.bestStreak}', label: 'Best Streak', color: AppColors.bestStreakStat),
-                              StatTile(value: '${profile.records.bestAccuracyPct}%', label: 'Best Accuracy', color: AppColors.correctStat),
                               StatTile(
-                                value: profile.records.fastestAvgResponseTimeMs != null
+                                value: '${profile.records.bestRushScore}',
+                                label: 'Best Rush Score',
+                                color: AppColors.finalScoreGold,
+                              ),
+                              StatTile(
+                                value: '🔥${profile.records.bestStreak}',
+                                label: 'Best Streak',
+                                color: AppColors.bestStreakStat,
+                              ),
+                              StatTile(
+                                value: '${profile.records.bestAccuracyPct}%',
+                                label: 'Best Accuracy',
+                                color: AppColors.correctStat,
+                              ),
+                              StatTile(
+                                value:
+                                    profile.records.fastestAvgResponseTimeMs !=
+                                        null
                                     ? '${(profile.records.fastestAvgResponseTimeMs! / 1000).toStringAsFixed(1)}s'
                                     : '—',
                                 label: 'Fastest Avg Rush',
                                 color: AppColors.darkText,
                               ),
-                              StatTile(value: '${profile.records.perfectRushCount}', label: 'Perfect Rushes', color: AppColors.wrongStat),
+                              StatTile(
+                                value: '${profile.records.perfectRushCount}',
+                                label: 'Perfect Rushes',
+                                color: AppColors.wrongStat,
+                              ),
                             ],
                           ),
                         ),
@@ -100,7 +146,9 @@ class ProfileScreen extends StatelessWidget {
                           title:
                               'Achievements (${profile.achievements.where((a) => a.unlocked).length}/${profile.achievements.length})',
                           child: Column(
-                            children: profile.achievements.map((a) => _AchievementRow(achievement: a)).toList(),
+                            children: profile.achievements
+                                .map((a) => _AchievementRow(achievement: a))
+                                .toList(),
                           ),
                         ),
                       ],
@@ -126,7 +174,13 @@ class _LevelCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardWhite,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: const [BoxShadow(color: Color(0x26000000), blurRadius: 24, offset: Offset(0, 10))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x26000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -134,11 +188,27 @@ class _LevelCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(profile.displayName, style: AppFonts.baloo(size: 18, color: AppColors.darkText)),
+              Text(
+                profile.displayName,
+                style: AppFonts.baloo(size: 18, color: AppColors.darkText),
+              ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(gradient: AppColors.playNowButton, borderRadius: BorderRadius.circular(999)),
-                child: Text('LEVEL ${profile.level}', style: AppFonts.inter(size: 12, weight: FontWeight.w800, color: AppColors.darkText)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  gradient: AppColors.playNowButton,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  'LEVEL ${profile.level}',
+                  style: AppFonts.inter(
+                    size: 12,
+                    weight: FontWeight.w800,
+                    color: AppColors.darkText,
+                  ),
+                ),
               ),
             ],
           ),
@@ -153,7 +223,8 @@ class _LevelCard extends StatelessWidget {
                 tween: Tween(begin: 0, end: profile.levelProgress),
                 duration: const Duration(milliseconds: 500),
                 curve: Curves.easeOut,
-                builder: (context, factor, child) => FractionallySizedBox(widthFactor: factor, child: child),
+                builder: (context, factor, child) =>
+                    FractionallySizedBox(widthFactor: factor, child: child),
                 child: Container(color: AppColors.goldTimer),
               ),
             ),
@@ -161,7 +232,11 @@ class _LevelCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             '${profile.xpIntoLevel} / ${profile.xpForNextLevel} XP to Level ${profile.level + 1} · ${profile.lifetimeXp} lifetime XP',
-            style: AppFonts.inter(size: 11, weight: FontWeight.w600, color: AppColors.mutedText),
+            style: AppFonts.inter(
+              size: 11,
+              weight: FontWeight.w600,
+              color: AppColors.mutedText,
+            ),
           ),
         ],
       ),
@@ -183,12 +258,25 @@ class _SectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.cardWhite,
         borderRadius: BorderRadius.circular(22),
-        boxShadow: const [BoxShadow(color: Color(0x26000000), blurRadius: 24, offset: Offset(0, 10))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x26000000),
+            blurRadius: 24,
+            offset: Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: AppFonts.inter(size: 14, weight: FontWeight.w800, color: AppColors.darkText)),
+          Text(
+            title,
+            style: AppFonts.inter(
+              size: 14,
+              weight: FontWeight.w800,
+              color: AppColors.darkText,
+            ),
+          ),
           const SizedBox(height: 14),
           child,
         ],
@@ -210,14 +298,31 @@ class _AchievementRow extends StatelessWidget {
         opacity: achievement.unlocked ? 1 : 0.45,
         child: Row(
           children: [
-            Text(achievement.unlocked ? '🏆' : '🔒', style: const TextStyle(fontSize: 20)),
+            Text(
+              achievement.unlocked ? '🏆' : '🔒',
+              style: const TextStyle(fontSize: 20),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(achievement.name, style: AppFonts.inter(size: 13, weight: FontWeight.w800, color: AppColors.darkText)),
-                  Text(achievement.description, style: AppFonts.inter(size: 11, weight: FontWeight.w600, color: AppColors.mutedText)),
+                  Text(
+                    achievement.name,
+                    style: AppFonts.inter(
+                      size: 13,
+                      weight: FontWeight.w800,
+                      color: AppColors.darkText,
+                    ),
+                  ),
+                  Text(
+                    achievement.description,
+                    style: AppFonts.inter(
+                      size: 11,
+                      weight: FontWeight.w600,
+                      color: AppColors.mutedText,
+                    ),
+                  ),
                 ],
               ),
             ),

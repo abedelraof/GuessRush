@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -54,28 +55,63 @@ class ApiClient {
     }
   }
 
-  Future<Map<String, dynamic>> get(String path) async {
-    final res = await http.get(Uri.parse('$_baseUrl$path'), headers: await _headers());
+  Future<Map<String, dynamic>> get(String path) => _send(() async {
+    final res = await http.get(
+      Uri.parse('$_baseUrl$path'),
+      headers: await _headers(),
+    );
     return _decode(res);
-  }
+  });
 
-  Future<List<dynamic>> getList(String path) async {
-    final res = await http.get(Uri.parse('$_baseUrl$path'), headers: await _headers());
+  Future<List<dynamic>> getList(String path) => _send(() async {
+    final res = await http.get(
+      Uri.parse('$_baseUrl$path'),
+      headers: await _headers(),
+    );
     return _decodeList(res);
-  }
+  });
 
-  Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async {
+  Future<Map<String, dynamic>> post(
+    String path, [
+    Map<String, dynamic>? body,
+  ]) => _send(() async {
     final res = await http.post(
       Uri.parse('$_baseUrl$path'),
       headers: await _headers(),
       body: body != null ? jsonEncode(body) : null,
     );
     return _decode(res);
-  }
+  });
 
-  Future<Map<String, dynamic>> delete(String path) async {
-    final res = await http.delete(Uri.parse('$_baseUrl$path'), headers: await _headers());
+  Future<Map<String, dynamic>> delete(String path) => _send(() async {
+    final res = await http.delete(
+      Uri.parse('$_baseUrl$path'),
+      headers: await _headers(),
+    );
     return _decode(res);
+  });
+
+  /// Every request funnels through here, so a transport-level failure (no
+  /// connection, DNS, TLS, a hung server) or a malformed response body only
+  /// ever needs handling in one place — as the same friendly ApiException
+  /// every caller already catches — instead of escaping as a raw
+  /// SocketException/TimeoutException/FormatException past every existing
+  /// `on ApiException` call site and leaving whatever screen called it stuck
+  /// on its loading state forever.
+  Future<T> _send<T>(Future<T> Function() action) async {
+    try {
+      return await action().timeout(const Duration(seconds: 15));
+    } on ApiException {
+      rethrow;
+    } on TimeoutException {
+      throw ApiException(
+        'The request timed out. Check your connection and try again.',
+      );
+    } catch (_) {
+      throw ApiException(
+        'Could not reach the server. Check your connection and try again.',
+      );
+    }
   }
 
   Future<Map<String, String>> _headers() async {
@@ -92,7 +128,9 @@ class ApiClient {
       return body as Map<String, dynamic>;
     }
     throw ApiException(
-      (body is Map && body['error'] is String) ? body['error'] as String : 'Request failed (${res.statusCode})',
+      (body is Map && body['error'] is String)
+          ? body['error'] as String
+          : 'Request failed (${res.statusCode})',
       statusCode: res.statusCode,
     );
   }
@@ -101,6 +139,9 @@ class ApiClient {
     if (res.statusCode >= 200 && res.statusCode < 300) {
       return jsonDecode(res.body) as List<dynamic>;
     }
-    throw ApiException('Request failed (${res.statusCode})', statusCode: res.statusCode);
+    throw ApiException(
+      'Request failed (${res.statusCode})',
+      statusCode: res.statusCode,
+    );
   }
 }

@@ -4,6 +4,7 @@ import '../models/reward.dart';
 import '../state/quiz_controller.dart';
 import '../theme/colors.dart';
 import '../theme/text_styles.dart';
+import '../widgets/retry_message.dart';
 
 class RewardsScreen extends StatelessWidget {
   final QuizController controller;
@@ -71,9 +72,17 @@ class RewardsScreen extends StatelessWidget {
           ),
           Expanded(
             child: rewards == null
-                ? const Center(
-                    child: CircularProgressIndicator(color: Colors.white),
-                  )
+                ? (controller.rewardsError != null
+                      ? RetryMessage(
+                          icon: '🔌',
+                          title: 'Couldn\'t load rewards',
+                          subtitle: controller.rewardsError!,
+                          actionLabel: 'RETRY',
+                          onAction: controller.loadRewards,
+                        )
+                      : const Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        ))
                 : SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                     child: Column(
