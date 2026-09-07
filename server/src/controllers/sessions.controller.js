@@ -25,6 +25,19 @@ function parseJsonField(value) {
   return typeof value === 'string' ? JSON.parse(value) : value;
 }
 
+/**
+ * Every handler below reads its session id from the same `:id` route param —
+ * a non-numeric value (a client bug, not a real session) used to reach the
+ * DB query as NaN and blow up as an unhandled 500 instead of a clean 400.
+ */
+function parseSessionId(req) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new ApiError(400, 'Invalid session id');
+  }
+  return id;
+}
+
 function serializeQuestion(row) {
   return {
     id: row.id,
@@ -109,7 +122,7 @@ async function loadOwnedInProgressSession(connection, sessionId, playerId) {
  * reset the clock right before submitting to fake a fast answer.
  */
 async function startQuestion(req, res) {
-  const sessionId = Number(req.params.id);
+  const sessionId = parseSessionId(req);
   const questionId = Number(req.body && req.body.question_id);
   if (!questionId) throw new ApiError(400, 'question_id is required');
 
@@ -148,7 +161,7 @@ async function startQuestion(req, res) {
  * reads this same column, never anything the client claims at answer time.
  */
 async function revealClue(req, res) {
-  const sessionId = Number(req.params.id);
+  const sessionId = parseSessionId(req);
 
   const connection = await pool.getConnection();
   try {
@@ -192,7 +205,7 @@ async function revealClue(req, res) {
  * spending a second use or re-rolling — see the early-return below.
  */
 async function useRemoveOne(req, res) {
-  const sessionId = Number(req.params.id);
+  const sessionId = parseSessionId(req);
 
   const connection = await pool.getConnection();
   try {
@@ -249,7 +262,7 @@ async function useRemoveOne(req, res) {
  * offer — a client can't invent one for an arbitrary question.
  */
 async function chooseDoubleDown(req, res) {
-  const sessionId = Number(req.params.id);
+  const sessionId = parseSessionId(req);
   const choice = req.body && req.body.choice;
   if (choice !== 'safe' && choice !== 'risky') {
     throw new ApiError(400, "choice must be 'safe' or 'risky'");
@@ -287,7 +300,7 @@ async function chooseDoubleDown(req, res) {
 }
 
 async function submitAnswer(req, res) {
-  const sessionId = Number(req.params.id);
+  const sessionId = parseSessionId(req);
   const questionId = Number(req.body && req.body.question_id);
   const selectedIndex = Number(req.body && req.body.selected_index);
   const clientResponseTimeMs = Number(req.body && req.body.response_time_ms) || 0;
@@ -462,7 +475,7 @@ async function submitAnswer(req, res) {
 }
 
 async function finish(req, res) {
-  const sessionId = Number(req.params.id);
+  const sessionId = parseSessionId(req);
 
   const connection = await pool.getConnection();
   try {
