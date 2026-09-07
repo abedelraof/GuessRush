@@ -1,8 +1,7 @@
 // Central catalog for the Rewards screen — one-time, claimable coin bonuses
 // layered on top of milestones the app already tracks elsewhere (level,
 // daily-play streak, achievements). Distinct from economy.config.js, which
-// tunes the ongoing energy/coins-per-answer mechanics rather than one-off
-// claims.
+// tunes the ongoing coins-per-answer earn rate rather than one-off claims.
 
 // ---- Level-up rewards ----
 // Flat coin bonus per level reached, starting at level 2 (level 1 is where

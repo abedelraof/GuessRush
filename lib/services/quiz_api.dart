@@ -490,11 +490,4 @@ class QuizApi {
     final res = await _api.post('/api/matches/friend/$code/join');
     return QueueJoinResult.fromJson(res);
   }
-
-  /// Poll fallback for a match's status/result — used if the socket
-  /// connection was missed or dropped (e.g. the app was backgrounded).
-  Future<MatchStatusResult> getMatch(int matchId) async {
-    final res = await _api.get('/api/matches/$matchId');
-    return MatchStatusResult.fromJson(res);
-  }
 }

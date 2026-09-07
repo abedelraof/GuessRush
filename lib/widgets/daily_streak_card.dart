@@ -4,10 +4,10 @@ import '../theme/colors.dart';
 import '../theme/text_styles.dart';
 
 /// The DAILY play streak (Phase 6) — distinct from the in-game answer streak
-/// shown by StreakBadge/timer-ring UI elsewhere. Deliberately styled
-/// differently from both that badge and the Daily Rush tile (glass card, not
-/// the shared streakBadge gradient) so the two "streak" concepts never read
-/// as the same thing at a glance.
+/// shown by game_screen.dart's `_StreakChip`/timer-ring UI elsewhere.
+/// Deliberately styled differently from both (glass card, not a badge
+/// gradient) so the two "streak" concepts never read as the same thing at a
+/// glance.
 class DailyStreakCard extends StatelessWidget {
   final int current;
   final int longest;

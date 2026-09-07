@@ -154,28 +154,4 @@ async function joinFriendMatch(req, res) {
   res.json({ status: 'matched', match_id: match.id, ...started.forB });
 }
 
-/** Poll fallback for match status/result — for a client that reconnects, or just missed the socket push. */
-async function getMatch(req, res) {
-  const matchId = Number(req.params.id);
-  const [rows] = await pool.query('SELECT * FROM matches WHERE id = ?', [matchId]);
-  const match = rows[0];
-  if (!match) throw new ApiError(404, 'Match not found');
-  if (match.player_a_id !== req.user.id && match.player_b_id !== req.user.id) {
-    throw new ApiError(403, 'Not your match');
-  }
-
-  if (match.status !== 'completed') {
-    return res.json({ status: match.status });
-  }
-
-  const [[sessionA]] = await pool.query('SELECT score FROM game_sessions WHERE id = ?', [match.session_a_id]);
-  const [[sessionB]] = await pool.query('SELECT score FROM game_sessions WHERE id = ?', [match.session_b_id]);
-  res.json({
-    status: 'completed',
-    match_id: match.id,
-    winner_player_id: match.winner_player_id,
-    scores: { a: sessionA ? sessionA.score : null, b: sessionB ? sessionB.score : null },
-  });
-}
-
-module.exports = { joinQueue, leaveQueue, createFriendMatch, joinFriendMatch, getMatch };
+module.exports = { joinQueue, leaveQueue, createFriendMatch, joinFriendMatch };

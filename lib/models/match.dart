@@ -58,15 +58,18 @@ class MatchPairedEvent extends MatchEvent {
     required this.opponent,
   }) : super('match:paired');
 
-  factory MatchPairedEvent.fromJson(Map<String, dynamic> json) => MatchPairedEvent(
-    matchId: json['match_id'] as int,
-    sessionId: json['session_id'] as int,
-    questions: (json['questions'] as List)
-        .map((q) => Question.fromJson(q as Map<String, dynamic>))
-        .toList(),
-    removeOneUsesRemaining: json['remove_one_uses_remaining'] as int? ?? 1,
-    opponent: MatchOpponent.fromJson(json['opponent'] as Map<String, dynamic>),
-  );
+  factory MatchPairedEvent.fromJson(Map<String, dynamic> json) =>
+      MatchPairedEvent(
+        matchId: json['match_id'] as int,
+        sessionId: json['session_id'] as int,
+        questions: (json['questions'] as List)
+            .map((q) => Question.fromJson(q as Map<String, dynamic>))
+            .toList(),
+        removeOneUsesRemaining: json['remove_one_uses_remaining'] as int? ?? 1,
+        opponent: MatchOpponent.fromJson(
+          json['opponent'] as Map<String, dynamic>,
+        ),
+      );
 }
 
 /// Presence-only — deliberately never carries correctness or score (see the
@@ -75,13 +78,16 @@ class MatchOpponentProgressEvent extends MatchEvent {
   final int matchId;
   final int currentIndex;
 
-  const MatchOpponentProgressEvent({required this.matchId, required this.currentIndex})
-    : super('match:opponent_progress');
+  const MatchOpponentProgressEvent({
+    required this.matchId,
+    required this.currentIndex,
+  }) : super('match:opponent_progress');
 
-  factory MatchOpponentProgressEvent.fromJson(Map<String, dynamic> json) => MatchOpponentProgressEvent(
-    matchId: json['match_id'] as int,
-    currentIndex: json['current_index'] as int,
-  );
+  factory MatchOpponentProgressEvent.fromJson(Map<String, dynamic> json) =>
+      MatchOpponentProgressEvent(
+        matchId: json['match_id'] as int,
+        currentIndex: json['current_index'] as int,
+      );
 }
 
 class MatchResultEvent extends MatchEvent {
@@ -89,14 +95,18 @@ class MatchResultEvent extends MatchEvent {
   final int? winnerPlayerId;
   final bool forfeit;
 
-  const MatchResultEvent({required this.matchId, required this.winnerPlayerId, this.forfeit = false})
-    : super('match:result');
+  const MatchResultEvent({
+    required this.matchId,
+    required this.winnerPlayerId,
+    this.forfeit = false,
+  }) : super('match:result');
 
-  factory MatchResultEvent.fromJson(Map<String, dynamic> json) => MatchResultEvent(
-    matchId: json['match_id'] as int,
-    winnerPlayerId: json['winner_player_id'] as int?,
-    forfeit: json['forfeit'] as bool? ?? false,
-  );
+  factory MatchResultEvent.fromJson(Map<String, dynamic> json) =>
+      MatchResultEvent(
+        matchId: json['match_id'] as int,
+        winnerPlayerId: json['winner_player_id'] as int?,
+        forfeit: json['forfeit'] as bool? ?? false,
+      );
 }
 
 /// Sent when a match is voided (a mid-match disconnect before either side
@@ -117,18 +127,4 @@ class QueueTimeoutEvent extends MatchEvent {
 
 class UnknownMatchEvent extends MatchEvent {
   const UnknownMatchEvent(super.type);
-}
-
-/// GET /api/matches/:id poll-fallback response — used when the socket
-/// connection was missed/dropped, e.g. after the app was backgrounded.
-class MatchStatusResult {
-  final String status;
-  final int? winnerPlayerId;
-
-  const MatchStatusResult({required this.status, this.winnerPlayerId});
-
-  factory MatchStatusResult.fromJson(Map<String, dynamic> json) => MatchStatusResult(
-    status: json['status'] as String,
-    winnerPlayerId: json['winner_player_id'] as int?,
-  );
 }

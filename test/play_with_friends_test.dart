@@ -63,10 +63,6 @@ class _FakeMatchApi extends QuizApi {
     if (joinFriendMatchError != null) throw joinFriendMatchError!;
     return joinFriendMatchResult!;
   }
-
-  @override
-  Future<MatchStatusResult> getMatch(int matchId) async =>
-      const MatchStatusResult(status: 'in_progress');
 }
 
 void main() {
