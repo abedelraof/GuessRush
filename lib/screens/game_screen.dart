@@ -538,6 +538,7 @@ class _QuestionBody extends StatelessWidget {
         );
       case QuestionType.video:
         return VideoQuestion(
+          videoUrl: q.videoUrl,
           duration: q.duration ?? '',
           isPlaying: controller.isPlaying,
           onTogglePlay: controller.togglePlay,

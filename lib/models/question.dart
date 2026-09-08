@@ -24,6 +24,7 @@ class Question {
   final List<String> options;
   final int timerSeconds;
   final String? audioUrl;
+  final String? videoUrl;
   final List<String?> optionImageUrls;
 
   const Question({
@@ -38,6 +39,7 @@ class Question {
     required this.options,
     this.timerSeconds = 0,
     this.audioUrl,
+    this.videoUrl,
     this.optionImageUrls = const [null, null, null, null],
   });
 
@@ -55,6 +57,7 @@ class Question {
       options: (json['options'] as List).map((e) => e as String).toList(),
       timerSeconds: json['timer_seconds'] as int? ?? 0,
       audioUrl: _resolveMediaUrl(json['audio_path'] as String?),
+      videoUrl: _resolveMediaUrl(json['video_path'] as String?),
       optionImageUrls: rawImagePaths != null
           ? rawImagePaths.map((p) => _resolveMediaUrl(p as String?)).toList()
           : const [null, null, null, null],

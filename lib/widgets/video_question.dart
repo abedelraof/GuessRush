@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 
 import '../theme/colors.dart';
 import '../theme/text_styles.dart';
 
 class VideoQuestion extends StatefulWidget {
+  final String? videoUrl;
   final String duration;
   final bool isPlaying;
   final VoidCallback onTogglePlay;
 
   const VideoQuestion({
     super.key,
+    required this.videoUrl,
     required this.duration,
     required this.isPlaying,
     required this.onTogglePlay,
@@ -19,30 +22,50 @@ class VideoQuestion extends StatefulWidget {
   State<VideoQuestion> createState() => _VideoQuestionState();
 }
 
-class _VideoQuestionState extends State<VideoQuestion> with SingleTickerProviderStateMixin {
-  late final AnimationController _scanController;
+class _VideoQuestionState extends State<VideoQuestion> {
+  VideoPlayerController? _controller;
+  bool _ready = false;
+  bool _failed = false;
 
   @override
   void initState() {
     super.initState();
-    _scanController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    );
-    if (widget.isPlaying) _scanController.repeat();
+    _initController();
+  }
+
+  void _initController() {
+    final url = widget.videoUrl;
+    if (url == null) return;
+    final controller = VideoPlayerController.networkUrl(Uri.parse(url));
+    _controller = controller;
+    controller.setLooping(true);
+    controller.initialize().then((_) {
+      if (!mounted) return;
+      setState(() => _ready = true);
+      if (widget.isPlaying) controller.play();
+    }).catchError((_) {
+      if (!mounted) return;
+      setState(() => _failed = true);
+    });
   }
 
   @override
   void didUpdateWidget(covariant VideoQuestion old) {
     super.didUpdateWidget(old);
-    if (widget.isPlaying != old.isPlaying) {
-      widget.isPlaying ? _scanController.repeat() : _scanController.stop();
+    if (widget.videoUrl != old.videoUrl) {
+      _controller?.dispose();
+      _controller = null;
+      _ready = false;
+      _failed = false;
+      _initController();
+    } else if (widget.isPlaying != old.isPlaying && _ready) {
+      widget.isPlaying ? _controller!.play() : _controller!.pause();
     }
   }
 
   @override
   void dispose() {
-    _scanController.dispose();
+    _controller?.dispose();
     super.dispose();
   }
 
@@ -60,50 +83,56 @@ class _VideoQuestionState extends State<VideoQuestion> with SingleTickerProvider
         ),
         child: Stack(
           children: [
-            if (widget.isPlaying)
-              AnimatedBuilder(
-                animation: _scanController,
-                builder: (context, child) {
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      final w = constraints.maxWidth;
-                      final x = -w * 0.4 + (_scanController.value * w * 1.4);
-                      return Positioned(
-                        top: 0,
-                        bottom: 0,
-                        left: x,
-                        width: w * 0.4,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.white.withValues(alpha: 0),
-                                Colors.white.withValues(alpha: 0.12),
-                                Colors.white.withValues(alpha: 0),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
+            if (_ready)
+              Positioned.fill(
+                child: FittedBox(
+                  fit: BoxFit.cover,
+                  child: SizedBox(
+                    width: _controller!.value.size.width,
+                    height: _controller!.value.size.height,
+                    child: VideoPlayer(_controller!),
+                  ),
+                ),
+              ),
+            if (!_ready && !_failed && widget.videoUrl != null)
+              const Center(
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white70),
+                ),
+              ),
+            if (_failed)
+              Center(
+                child: Text(
+                  'Video failed to load',
+                  style: AppFonts.inter(size: 13, weight: FontWeight.w600, color: Colors.white70),
+                ),
+              ),
+            if (widget.videoUrl == null)
+              Center(
+                child: Text(
+                  'No video attached yet',
+                  style: AppFonts.inter(size: 13, weight: FontWeight.w600, color: Colors.white70),
+                ),
               ),
             Center(
               child: GestureDetector(
-                onTap: widget.onTogglePlay,
+                onTap: _ready ? widget.onTogglePlay : null,
                 child: Container(
                   width: 56,
                   height: 56,
-                  decoration: const BoxDecoration(
-                    color: Color(0xE6FFFFFF),
+                  decoration: BoxDecoration(
+                    color: const Color(0xE6FFFFFF).withValues(alpha: _ready ? 0.9 : 0),
                     shape: BoxShape.circle,
                   ),
                   alignment: Alignment.center,
-                  child: Text(
-                    widget.isPlaying ? '❙❙' : '▶',
-                    style: const TextStyle(color: AppColors.videoGradB, fontSize: 20),
-                  ),
+                  child: _ready
+                      ? Text(
+                          widget.isPlaying ? '❙❙' : '▶',
+                          style: const TextStyle(color: AppColors.videoGradB, fontSize: 20),
+                        )
+                      : null,
                 ),
               ),
             ),
@@ -129,18 +158,36 @@ class _VideoQuestionState extends State<VideoQuestion> with SingleTickerProvider
                         height: 4,
                         color: Colors.white.withValues(alpha: 0.3),
                         alignment: Alignment.centerLeft,
-                        child: FractionallySizedBox(
-                          widthFactor: 0.35,
-                          child: Container(color: Colors.white),
-                        ),
+                        child: _ready
+                            ? ValueListenableBuilder<VideoPlayerValue>(
+                                valueListenable: _controller!,
+                                builder: (context, value, _) {
+                                  final total = value.duration.inMilliseconds;
+                                  final pos = value.position.inMilliseconds;
+                                  final factor = total > 0 ? (pos / total).clamp(0.0, 1.0) : 0.0;
+                                  return FractionallySizedBox(
+                                    widthFactor: factor,
+                                    child: Container(color: Colors.white),
+                                  );
+                                },
+                              )
+                            : const SizedBox.shrink(),
                       ),
                     ),
                     const SizedBox(height: 6),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(widget.duration, style: AppFonts.inter(size: 11, weight: FontWeight.w600)),
-                        Text('⟲ ⛶', style: AppFonts.inter(size: 11, weight: FontWeight.w600)),
+                        Text(_durationLabel(), style: AppFonts.inter(size: 11, weight: FontWeight.w600)),
+                        GestureDetector(
+                          onTap: _ready
+                              ? () {
+                                  _controller!.seekTo(Duration.zero);
+                                  if (!widget.isPlaying) widget.onTogglePlay();
+                                }
+                              : null,
+                          child: Text('⟲ ⛶', style: AppFonts.inter(size: 11, weight: FontWeight.w600)),
+                        ),
                       ],
                     ),
                   ],
@@ -151,5 +198,15 @@ class _VideoQuestionState extends State<VideoQuestion> with SingleTickerProvider
         ),
       ),
     );
+  }
+
+  String _durationLabel() {
+    if (_ready) {
+      final d = _controller!.value.duration;
+      final m = d.inMinutes;
+      final s = d.inSeconds % 60;
+      return '$m:${s.toString().padLeft(2, '0')}';
+    }
+    return widget.duration;
   }
 }

@@ -52,6 +52,7 @@ function serializeQuestion(row) {
     clues: row.clues ? parseJsonField(row.clues) : null,
     timer_seconds: row.timer_seconds,
     audio_path: row.audio_path || null,
+    video_path: row.video_path || null,
     option_image_paths: row.option_image_paths ? parseJsonField(row.option_image_paths) : null,
     // correct_index intentionally omitted — never sent to the client.
   };

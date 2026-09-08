@@ -37,6 +37,7 @@ services:
     volumes:
       - audio_data:/app/public/audio
       - images_data:/app/public/images
+      - video_data:/app/public/video
     depends_on:
       mysql:
         condition: service_healthy
@@ -45,3 +46,4 @@ volumes:
   mysql_data:
   audio_data:
   images_data:
+  video_data:
